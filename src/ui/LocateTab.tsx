@@ -74,7 +74,7 @@ export function LocateTab(props: Props) {
             />
           </View>
           <MiniButton label="My position" onPress={me} />
-          <MiniButton label="Whole route" onPress={() => props.onView(fitAll(race.route))} />
+          <MiniButton label="Full route" onPress={() => props.onView(fitAll(race.route))} />
         </View>
       </View>
       <Profile race={race} climbs={props.climbs} reachedKm={reached} cursorKm={props.cursorKm} onCursor={props.onCursor} />
@@ -82,29 +82,19 @@ export function LocateTab(props: Props) {
   );
 }
 
-/** Where the runner stands relative to the course, and what to do about it. */
+/** Where the runner stands relative to the route. Facts only. */
 function Guide({ run }: { run: Run }) {
   const fix = run.latestFix;
   if (fix === null || run.nearest === null || run.routeState === null) {
     return (
       <View style={styles.guide}>
-        <Text style={styles.head}>{run.declared ? 'POSITION YOU ENTERED' : 'WAITING FOR GPS'}</Text>
-        <Text style={styles.detail}>
-          {run.declared
-            ? `Using km ${kmValue(run.km)} on the route. Paco keeps reading GPS and takes over again with the next good reading.`
-            : 'Paco reads GPS by itself. Stand in an open place for a moment.'}
-        </Text>
+        <Text style={styles.head}>{run.declared ? `KM ${kmValue(run.km)} · ENTERED` : 'WAITING FOR GPS'}</Text>
       </View>
     );
   }
   const deviationM = Math.round(run.nearest.deviationM);
-  const accuracy = ` · GPS error ±${Math.round(fix.accuracyM)} m`;
-  const rejected =
-    fix.accuracyM > acceptableAccuracyM ? (
-      <Text style={styles.reject}>
-        GPS error ±{Math.round(fix.accuracyM)} m is too big, so the km was not updated. Move to an open place, or enter the km.
-      </Text>
-    ) : null;
+  const gps = `GPS ±${Math.round(fix.accuracyM)} m`;
+  const weak = fix.accuracyM > acceptableAccuracyM ? <Text style={styles.reject}>{gps} · km not updated</Text> : null;
 
   if (!run.memory.joined && run.routeState !== 'on-route') {
     const away = haversineKm(fix.at, run.nearest.snap);
@@ -112,8 +102,7 @@ function Guide({ run }: { run: Run }) {
       <View style={styles.guide}>
         <Text style={styles.head}>NOT ON THE ROUTE YET</Text>
         <Text style={styles.detail}>
-          The nearest part of the route is {kmOrMetres(away)} to the {compass(bearing(fix.at, run.nearest.snap))}, at km{' '}
-          {kmValue(run.nearest.km)}. Paco starts warning about leaving the route once you have been on it.
+          {kmOrMetres(away)} {compass(bearing(fix.at, run.nearest.snap))} · nearest at km {kmValue(run.nearest.km)}
         </Text>
       </View>
     );
@@ -125,27 +114,19 @@ function Guide({ run }: { run: Run }) {
         <View style={[styles.guide, styles.onRoute]}>
           <Text style={[styles.head, styles.okText]}>ON THE ROUTE</Text>
           <Text style={styles.detail}>
-            {deviationM} m from the line, at about km {kmValue(run.km)}
-            {accuracy}. Keep going.
+            km {kmValue(run.km)} · {deviationM} m from the line · {gps}
           </Text>
-          {rejected}
+          {weak}
         </View>
       );
     case 'uncertain':
       return (
         <View style={[styles.guide, styles.unsure]}>
-          <Text style={[styles.head, styles.warnText]}>NOT SURE YET</Text>
+          <Text style={[styles.head, styles.warnText]}>NOT SURE</Text>
           <Text style={styles.detail}>
-            GPS says {deviationM} m from the line{accuracy}. That is inside the GPS error, so you may still be on the route.
+            {deviationM} m from the line · {gps}
           </Text>
-          <Steps
-            items={[
-              'Stand still, away from thick trees or rock walls.',
-              'Paco checks again by itself every few seconds.',
-              "Meanwhile, look around for the organiser's ribbons.",
-            ]}
-          />
-          {rejected}
+          {weak}
         </View>
       );
     case 'off-route': {
@@ -154,39 +135,17 @@ function Guide({ run }: { run: Run }) {
       const behind = run.nearest.km < run.km;
       return (
         <View style={[styles.guide, styles.offRoute]}>
-          <Text style={[styles.head, styles.lateText]}>YOU LEFT THE ROUTE · {deviationM} M</Text>
+          <Text style={[styles.head, styles.lateText]}>OFF THE ROUTE · {deviationM} M</Text>
           <Text style={styles.arrow}>{compassArrow[direction]}</Text>
           <Text style={styles.detail}>
-            Go {direction} ({heading}°) about {deviationM} m to reach the line at km {kmValue(run.nearest.km)}.
-            {behind ? ' This point is on a part you already ran: when you get there, turn and follow the route forward again.' : ''}
+            {direction} {heading}° · {deviationM} m · back at km {kmValue(run.nearest.km)}
+            {behind ? ' (already run)' : ''}
           </Text>
-          <Steps
-            items={[
-              'Stop. Do not go further until you know the direction.',
-              `Turn until you face ${direction}. Check against the map below.`,
-              deviationM > 400
-                ? 'More than 400 m off: the safest way is back along your own track (the grey dots on the map) to where you last saw the organiser\'s marks.'
-                : "Walk and watch for the organiser's ribbons on both sides.",
-              'When you are there, Paco confirms by itself.',
-            ]}
-          />
-          {rejected}
+          {weak}
         </View>
       );
     }
   }
-}
-
-function Steps({ items }: { items: string[] }) {
-  return (
-    <View style={styles.steps}>
-      {items.map((item, i) => (
-        <Text key={i} style={styles.step}>
-          {i + 1}. {item}
-        </Text>
-      ))}
-    </View>
-  );
 }
 
 function MiniButton({ label, onPress }: { label: string; onPress: () => void }) {
@@ -209,8 +168,6 @@ const styles = StyleSheet.create({
   arrow: { fontSize: 44, lineHeight: 50, marginTop: 10, marginBottom: 6, color: colors.paper },
   detail: { fontSize: 13.5, color: colors.paper, marginTop: 4, lineHeight: 19 },
   reject: { marginTop: 10, fontSize: 13.5, fontWeight: '600', color: colors.late },
-  steps: { marginTop: 10, gap: 4 },
-  step: { fontSize: 13, color: colors.muted, lineHeight: 18 },
   mapCard: { marginTop: 14, backgroundColor: colors.ink2, borderWidth: 1, borderColor: colors.line, borderRadius: 14, overflow: 'hidden' },
   mapFoot: { flexDirection: 'row', gap: 8, padding: 10, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: colors.line, alignItems: 'flex-end' },
   ahead: { flex: 1, minWidth: 0 },

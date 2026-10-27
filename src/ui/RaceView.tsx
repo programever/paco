@@ -57,9 +57,6 @@ export function RaceView({ loaded, run, now, onBack, onStart, onEnd, onDeclareKm
         )}
         {run === null ? (
           <View style={styles.dock}>
-            <Text style={styles.hint}>
-              After Start, Paco reads GPS by itself, also with the screen locked, and speaks the alerts.
-            </Text>
             <BigButton label="Start" solid onPress={onStart} />
           </View>
         ) : (
@@ -70,7 +67,6 @@ export function RaceView({ loaded, run, now, onBack, onStart, onEnd, onDeclareKm
             </View>
           </>
         )}
-        <Text style={styles.credit}>Runs fully offline · sends nothing anywhere</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -124,7 +120,6 @@ function Dock({ onDeclareKm }: { onDeclareKm: (km: number) => void }) {
   };
   return (
     <View style={styles.dock}>
-      <Text style={styles.hint}>Paco reads GPS by itself, also with the screen locked.</Text>
       <BigButton label="Enter km" onPress={() => setOpen(!open)} />
       {open && (
         <View style={styles.kmEntry}>
@@ -199,7 +194,6 @@ const styles = StyleSheet.create({
   tabText: { fontFamily: mono, fontSize: 13, fontWeight: '700', letterSpacing: 1, color: colors.muted },
   tabTextOn: { color: colors.onTape },
   dock: { marginTop: 18, gap: 10 },
-  hint: { fontSize: 12.5, color: colors.muted, textAlign: 'center' },
   big: { minHeight: 64, borderRadius: 14, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.ink2, alignItems: 'center', justifyContent: 'center' },
   bigText: { fontSize: 17, fontWeight: '700', color: colors.paper },
   solid: { backgroundColor: colors.tape, borderColor: colors.tape },
@@ -213,5 +207,4 @@ const styles = StyleSheet.create({
   footer: { marginTop: 14 },
   quiet: { minHeight: 44, borderRadius: 11, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   quietText: { fontSize: 15, fontWeight: '600', color: colors.muted },
-  credit: { fontFamily: mono, fontSize: 11, color: colors.muted, textAlign: 'center', marginTop: 22 },
 });

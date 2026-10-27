@@ -80,9 +80,7 @@ export function Profile({ race, climbs, reachedKm, cursorKm, onCursor }: Props) 
           </View>
         ))}
       </View>
-      <Text style={[styles.readout, cursorKm !== null && styles.readoutLive]}>
-        {cursorKm === null ? 'Touch and drag on the chart to see the slope ahead. Light orange: steep climbs, where Paco says "Use the poles now".' : readout(route, cursorKm)}
-      </Text>
+      {cursorKm !== null && <Text style={styles.readout}>{readout(route, cursorKm)}</Text>}
     </View>
   );
 }
@@ -152,6 +150,5 @@ const styles = StyleSheet.create({
   caption: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   small: { fontFamily: mono, fontSize: 10.5, color: colors.muted },
-  readout: { fontFamily: mono, fontSize: 11.5, color: colors.muted, marginTop: 6, lineHeight: 16 },
-  readoutLive: { color: colors.warn },
+  readout: { fontFamily: mono, fontSize: 11.5, color: colors.warn, marginTop: 6, lineHeight: 16 },
 });
