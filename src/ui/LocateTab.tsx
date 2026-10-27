@@ -9,6 +9,7 @@ import { Run } from '../core/run';
 import { CourseMap, fitAll, fitTo, MapView, You } from './CourseMap';
 import { Profile } from './Profile';
 import { colors, compassArrow, kmOrMetres, kmValue, mono } from './theme';
+import { WayArrow } from './WayArrow';
 
 type Props = {
   race: Race;
@@ -100,9 +101,12 @@ function Guide({ run }: { run: Run }) {
 
   if (!run.memory.joined && run.routeState !== 'on-route') {
     const away = haversineKm(fix.at, run.nearest.snap);
+    const heading = bearing(fix.at, run.nearest.snap);
     return (
       <View style={styles.guide}>
         <Text style={styles.head}>NOT ON THE ROUTE YET</Text>
+        <WayArrow bearing={heading} fallback={compassArrow[compass(heading)]} />
+        <Text style={styles.distance}>{kmOrMetres(away)}</Text>
         <Text style={styles.detail}>
           {kmOrMetres(away)} {compass(bearing(fix.at, run.nearest.snap))} · nearest at km {kmValue(run.nearest.km)}
         </Text>
@@ -138,7 +142,8 @@ function Guide({ run }: { run: Run }) {
       return (
         <View style={[styles.guide, styles.offRoute]}>
           <Text style={[styles.head, styles.lateText]}>OFF THE ROUTE · {deviationM} M</Text>
-          <Text style={styles.arrow}>{compassArrow[direction]}</Text>
+          <WayArrow bearing={heading} fallback={compassArrow[direction]} />
+          <Text style={styles.distance}>{deviationM} m</Text>
           <Text style={styles.detail}>
             {direction} {heading}° · {deviationM} m · back at km {kmValue(run.nearest.km)}
             {behind ? ' (already run)' : ''}
@@ -167,7 +172,7 @@ const styles = StyleSheet.create({
   okText: { color: colors.ok },
   warnText: { color: colors.warn },
   lateText: { color: colors.late },
-  arrow: { fontSize: 44, lineHeight: 50, marginTop: 10, marginBottom: 6, color: colors.paper },
+  distance: { fontFamily: mono, fontSize: 28, fontWeight: '800', textAlign: 'center', color: colors.paper },
   detail: { fontSize: 13.5, color: colors.paper, marginTop: 4, lineHeight: 19 },
   reject: { marginTop: 10, fontSize: 13.5, fontWeight: '600', color: colors.late },
   mapCard: { marginTop: 14, backgroundColor: colors.ink2, borderWidth: 1, borderColor: colors.line, borderRadius: 14, overflow: 'hidden' },
