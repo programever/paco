@@ -3,7 +3,8 @@
 const { getDefaultConfig } = require('expo/metro-config');
 
 const config = getDefaultConfig(__dirname);
-config.resolver.blockList = [/\/ios\/.*/, /\/android\/.*/];
+const root = __dirname.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+config.resolver.blockList = [new RegExp(`^${root}/(ios|android)/.*`)];
 config.watchFolders = [];
 
 module.exports = config;
