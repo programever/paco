@@ -5,7 +5,7 @@ import { checkpointLabel, clockText, cutoffMoment, nextAhead, nextWithCutoff, Ra
 import { ascentBetweenM, descentBetweenM } from './route';
 
 /** The bundled voice files. Kept few on purpose: details go in the text, not the voice. */
-export type Voice = 'use_poles' | 'no_poles' | 'km_5' | 'km_4' | 'km_3' | 'km_2' | 'km_1' | 'off_course';
+export type Voice = 'use_poles' | 'no_poles' | 'km_5' | 'km_4' | 'km_3' | 'km_2' | 'km_1' | 'off_route';
 
 /** `voice: null` plays the normal notification sound. */
 export type Alert = { readonly voice: Voice | null; readonly title: string; readonly body: string };
@@ -161,7 +161,7 @@ const offCourse: Rule = ({ settings }, memory, seen) => {
   if (seen.routeState === 'on-route') {
     if (memory.offCourse === null) return nothing(memory);
     const back: Alert[] =
-      memory.offCourse.lastSaidAt === null ? [] : [{ voice: null, title: 'Back on the course', body: 'Well done.' }];
+      memory.offCourse.lastSaidAt === null ? [] : [{ voice: null, title: 'Back on the route', body: 'Well done.' }];
     return { alerts: back, memory: { ...memory, offCourse: null } };
   }
   const state = memory.offCourse ?? { since: seen.now, lastSaidAt: null };
@@ -173,7 +173,7 @@ const offCourse: Rule = ({ settings }, memory, seen) => {
   const direction = compass(bearing(seen.fix.at, seen.nearest.snap));
   return {
     alerts: [
-      { voice: 'off_course', title: 'You are off the course', body: `The course is ${metres} m to the ${direction}.` },
+      { voice: 'off_route', title: 'You are off the route', body: `The route is ${metres} m to the ${direction}.` },
     ],
     memory: { ...memory, offCourse: { since: state.since, lastSaidAt: seen.now } },
   };

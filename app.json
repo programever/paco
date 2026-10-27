@@ -17,8 +17,8 @@
         "expo-location",
         {
           "isIosBackgroundLocationEnabled": true,
-          "locationAlwaysAndWhenInUsePermission": "Paco reads your position during a race, also when the screen is locked, to tell you how far the next checkpoint is and if you leave the course.",
-          "locationWhenInUsePermission": "Paco reads your position to place you on the race course."
+          "locationAlwaysAndWhenInUsePermission": "Paco reads your position during a race, also when the screen is locked, to tell you how far the next checkpoint is and if you leave the route.",
+          "locationWhenInUsePermission": "Paco reads your position to place you on the race route."
         }
       ],
       [
@@ -32,7 +32,7 @@
             "./assets/sounds/km_3.wav",
             "./assets/sounds/km_2.wav",
             "./assets/sounds/km_1.wav",
-            "./assets/sounds/off_course.wav"
+            "./assets/sounds/off_route.wav"
           ]
         }
       ]

@@ -109,9 +109,23 @@ describe('climbs', () => {
     const route = eastward(3000, (m) => (m < 1000 ? 0 : m < 1600 ? (m - 1000) * 0.2 : 120));
     const found = climbs(route);
     expect(found).toHaveLength(1);
-    expect(found[0].startKm).toBeCloseTo(0.9, 0);
+    expect(Math.abs(found[0].startKm - 1.0)).toBeLessThan(0.1);
+    expect(Math.abs(found[0].endKm - 1.6)).toBeLessThan(0.1);
     expect(found[0].gainM).toBeGreaterThan(100);
     expect(climbs(eastward(3000, (m) => m * 0.05))).toHaveLength(0);
+  });
+
+  it('joins two climbs with a short flat bit between them', () => {
+    const height = (m: number) => (m < 1000 ? 0 : m < 1300 ? (m - 1000) * 0.15 : m < 1500 ? 45 : m < 1800 ? 45 + (m - 1500) * 0.15 : 90);
+    const found = climbs(eastward(3000, height));
+    expect(found).toHaveLength(1);
+    expect(found[0].startKm).toBeCloseTo(1.0, 1);
+    expect(found[0].endKm).toBeCloseTo(1.8, 1);
+  });
+
+  it('finds a long steady climb at 8 % and ignores a gentle one at 5 %', () => {
+    expect(climbs(eastward(3000, (m) => (m < 1000 ? 0 : m < 2000 ? (m - 1000) * 0.08 : 80)))).toHaveLength(1);
+    expect(climbs(eastward(3000, (m) => (m < 1000 ? 0 : m < 2000 ? (m - 1000) * 0.05 : 50)))).toHaveLength(0);
   });
 
   it('ignores a steep step too short to need poles', () => {

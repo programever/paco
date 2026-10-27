@@ -66,17 +66,17 @@ describe('off course', () => {
     };
     expect(step(0, 120)).toEqual([]);
     expect(step(10_000, 120)).toEqual([]);
-    expect(step(25_000, 120)).toEqual(['You are off the course']);
+    expect(step(25_000, 120)).toEqual(['You are off the route']);
     expect(step(60_000, 120)).toEqual([]);
-    expect(step(150_000, 120)).toEqual(['You are off the course']);
-    expect(step(160_000, 0)).toEqual(['Back on the course']);
+    expect(step(150_000, 120)).toEqual(['You are off the route']);
+    expect(step(160_000, 0)).toEqual(['Back on the route']);
   });
 
   it('points back towards the course', () => {
     let run = runAlong(ctx, 0, 1000).run;
     run = applyFix(ctx, run, fix(1000, 2_000_000, { northM: 120 })).run;
     const said = applyFix(ctx, run, fix(1000, 2_030_000, { northM: 120 })).alerts[0];
-    expect(said.body).toMatch(/^The course is 1[12]\d m to the south\.$/);
+    expect(said.body).toMatch(/^The route is 1[12]\d m to the south\.$/);
   });
 
   it('says nothing before the runner has been on the course', () => {

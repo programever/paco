@@ -74,7 +74,7 @@ export function LocateTab(props: Props) {
             />
           </View>
           <MiniButton label="My position" onPress={me} />
-          <MiniButton label="Whole course" onPress={() => props.onView(fitAll(race.route))} />
+          <MiniButton label="Whole route" onPress={() => props.onView(fitAll(race.route))} />
         </View>
       </View>
       <Profile race={race} climbs={props.climbs} reachedKm={reached} cursorKm={props.cursorKm} onCursor={props.onCursor} />
@@ -91,7 +91,7 @@ function Guide({ run }: { run: Run }) {
         <Text style={styles.head}>{run.declared ? 'POSITION YOU ENTERED' : 'WAITING FOR GPS'}</Text>
         <Text style={styles.detail}>
           {run.declared
-            ? `Using km ${kmValue(run.km)} on the course. Paco keeps reading GPS and takes over again with the next good reading.`
+            ? `Using km ${kmValue(run.km)} on the route. Paco keeps reading GPS and takes over again with the next good reading.`
             : 'Paco reads GPS by itself. Stand in an open place for a moment.'}
         </Text>
       </View>
@@ -110,10 +110,10 @@ function Guide({ run }: { run: Run }) {
     const away = haversineKm(fix.at, run.nearest.snap);
     return (
       <View style={styles.guide}>
-        <Text style={styles.head}>NOT ON THE COURSE YET</Text>
+        <Text style={styles.head}>NOT ON THE ROUTE YET</Text>
         <Text style={styles.detail}>
-          The nearest part of the course is {kmOrMetres(away)} to the {compass(bearing(fix.at, run.nearest.snap))}, at km{' '}
-          {kmValue(run.nearest.km)}. Paco starts warning about leaving the course once you have been on it.
+          The nearest part of the route is {kmOrMetres(away)} to the {compass(bearing(fix.at, run.nearest.snap))}, at km{' '}
+          {kmValue(run.nearest.km)}. Paco starts warning about leaving the route once you have been on it.
         </Text>
       </View>
     );
@@ -123,7 +123,7 @@ function Guide({ run }: { run: Run }) {
     case 'on-route':
       return (
         <View style={[styles.guide, styles.onRoute]}>
-          <Text style={[styles.head, styles.okText]}>ON THE COURSE</Text>
+          <Text style={[styles.head, styles.okText]}>ON THE ROUTE</Text>
           <Text style={styles.detail}>
             {deviationM} m from the line, at about km {kmValue(run.km)}
             {accuracy}. Keep going.
@@ -136,7 +136,7 @@ function Guide({ run }: { run: Run }) {
         <View style={[styles.guide, styles.unsure]}>
           <Text style={[styles.head, styles.warnText]}>NOT SURE YET</Text>
           <Text style={styles.detail}>
-            GPS says {deviationM} m from the line{accuracy}. That is inside the GPS error, so you may still be on the course.
+            GPS says {deviationM} m from the line{accuracy}. That is inside the GPS error, so you may still be on the route.
           </Text>
           <Steps
             items={[
@@ -154,11 +154,11 @@ function Guide({ run }: { run: Run }) {
       const behind = run.nearest.km < run.km;
       return (
         <View style={[styles.guide, styles.offRoute]}>
-          <Text style={[styles.head, styles.lateText]}>YOU LEFT THE COURSE · {deviationM} M</Text>
+          <Text style={[styles.head, styles.lateText]}>YOU LEFT THE ROUTE · {deviationM} M</Text>
           <Text style={styles.arrow}>{compassArrow[direction]}</Text>
           <Text style={styles.detail}>
             Go {direction} ({heading}°) about {deviationM} m to reach the line at km {kmValue(run.nearest.km)}.
-            {behind ? ' This point is on a part you already ran: when you get there, turn and follow the course forward again.' : ''}
+            {behind ? ' This point is on a part you already ran: when you get there, turn and follow the route forward again.' : ''}
           </Text>
           <Steps
             items={[
