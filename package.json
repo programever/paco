@@ -3,19 +3,19 @@
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
-    "expo": "~58.0.19",
-    "expo-battery": "~58.0.3",
-    "expo-file-system": "~58.0.11",
-    "expo-location": "~58.0.19",
-    "expo-notifications": "~58.1.6",
-    "expo-status-bar": "~58.0.4",
-    "expo-task-manager": "~58.0.12",
-    "react": "19.3.0",
-    "react-native": "0.88.0"
+    "expo": "~55.0.32",
+    "expo-battery": "~55.0.17",
+    "expo-file-system": "~55.0.26",
+    "expo-location": "~55.1.15",
+    "expo-notifications": "~55.0.27",
+    "expo-status-bar": "~55.0.6",
+    "expo-task-manager": "~55.0.20",
+    "react": "19.2.0",
+    "react-native": "0.83.10"
   },
   "devDependencies": {
-    "@types/react": "~19.3.0",
-    "typescript": "~6.0.3"
+    "@types/react": "~19.2.2",
+    "typescript": "~5.9.2"
   },
   "scripts": {
     "start": "expo start",

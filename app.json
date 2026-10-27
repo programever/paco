@@ -11,6 +11,7 @@
       "bundleIdentifier": "com.programever.paco"
     },
     "plugins": [
+      "./plugins/withoutRemotePush",
       [
         "expo-location",
         {
@@ -22,7 +23,6 @@
       [
         "expo-notifications",
         {
-          "enableRemoteNotifications": false,
           "sounds": [
             "./assets/sounds/use_poles.wav",
             "./assets/sounds/no_poles.wav",
