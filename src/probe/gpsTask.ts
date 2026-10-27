@@ -50,16 +50,28 @@ export async function stopProbe(): Promise<void> {
 
 export const isProbeRunning = (): Promise<boolean> => Location.hasStartedLocationUpdatesAsync(gpsTask);
 
-TaskManager.defineTask<{ locations: Location.LocationObject[] }>(gpsTask, async ({ data, error }) => {
+// After a relaunch iOS delivers several batches at once; each would read the
+// same state and fire its own check. One batch at a time.
+let queue: Promise<void> = Promise.resolve();
+
+TaskManager.defineTask<{ locations: Location.LocationObject[] }>(gpsTask, ({ data, error }) => {
+  queue = queue.then(() => handleBatch(data?.locations ?? [], error)).catch(() => {});
+  return queue;
+});
+
+async function handleBatch(
+  locations: Location.LocationObject[],
+  error: TaskManager.TaskManagerError | null,
+): Promise<void> {
   if (error) {
     await appendEntry({ kind: 'error', at: Date.now(), message: error.message });
     return;
   }
-  const best = mostAccurate(data.locations);
+  const best = mostAccurate(locations);
   if (best === undefined) return;
-  const state = countFixes(readState(), data.locations.length, Date.now());
+  const state = countFixes(readState(), locations.length, Date.now());
   writeState(await handleFix(state, best, readSettings()));
-});
+}
 
 const mostAccurate = (locations: Location.LocationObject[]): Location.LocationObject | undefined =>
   [...locations].sort((a, b) => (a.coords.accuracy ?? Infinity) - (b.coords.accuracy ?? Infinity))[0];
