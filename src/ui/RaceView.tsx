@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { LoadedRace } from '../app/races';
@@ -27,11 +27,19 @@ export function RaceView({ loaded, run, now, onBack, onStart, onEnd, onDeclareKm
   const [view, setView] = useState<MapView>(() => fitAll(race.route));
   const [aheadText, setAheadText] = useState('500');
   const [cursorKm, setCursorKm] = useState<number | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const page = useRef<ScrollView>(null);
 
   return (
     <SafeAreaView style={styles.screen}>
       <Header run={run} now={now} onBack={onBack} />
-      <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        ref={page}
+        contentContainerStyle={styles.page}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+        scrollEnabled={!dragging}
+      >
         <Text style={styles.raceName}>{race.name}</Text>
         <Text style={styles.raceFacts}>
           {kmValue(race.route.totalKm)} km · ↑{Math.round(race.route.totalAscentM)} m · ↓{Math.round(race.route.totalDescentM)} m
@@ -53,6 +61,7 @@ export function RaceView({ loaded, run, now, onBack, onStart, onEnd, onDeclareKm
             onAheadText={setAheadText}
             cursorKm={cursorKm}
             onCursor={setCursorKm}
+            onDragging={setDragging}
           />
         )}
         {run === null ? (
@@ -61,7 +70,7 @@ export function RaceView({ loaded, run, now, onBack, onStart, onEnd, onDeclareKm
           </View>
         ) : (
           <>
-            <Dock onDeclareKm={onDeclareKm} />
+            <Dock onDeclareKm={onDeclareKm} onOpen={() => setTimeout(() => page.current?.scrollToEnd({ animated: true }), 350)} />
             <View style={styles.footer}>
               <QuietButton label="End" onPress={() => confirmEnd(onEnd)} />
             </View>
@@ -105,7 +114,7 @@ function Header({ run, now, onBack }: { run: Run | null; now: number; onBack: ()
 }
 
 /** The backup when GPS cannot be trusted: the runner reads the km off a marker and types it. */
-function Dock({ onDeclareKm }: { onDeclareKm: (km: number) => void }) {
+function Dock({ onDeclareKm, onOpen }: { onDeclareKm: (km: number) => void; onOpen: () => void }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   const submit = () => {
@@ -131,6 +140,7 @@ function Dock({ onDeclareKm }: { onDeclareKm: (km: number) => void }) {
             value={text}
             onChangeText={setText}
             autoFocus
+            onFocus={onOpen}
           />
           <Pressable style={styles.update} onPress={submit}>
             <Text style={styles.updateText}>Update</Text>

@@ -20,6 +20,7 @@ type Props = {
   onAheadText: (text: string) => void;
   cursorKm: number | null;
   onCursor: (km: number | null) => void;
+  onDragging: (dragging: boolean) => void;
 };
 
 const defaultAheadM = 500;
@@ -61,6 +62,7 @@ export function LocateTab(props: Props) {
           wayBack={lost ? (run?.nearest?.snap ?? null) : null}
           cursorKm={props.cursorKm}
           breadcrumbs={run?.breadcrumbs ?? []}
+          onDragging={props.onDragging}
         />
         <View style={styles.mapFoot}>
           <View style={styles.ahead}>
@@ -77,7 +79,7 @@ export function LocateTab(props: Props) {
           <MiniButton label="Full route" onPress={() => props.onView(fitAll(race.route))} />
         </View>
       </View>
-      <Profile race={race} climbs={props.climbs} reachedKm={reached} cursorKm={props.cursorKm} onCursor={props.onCursor} />
+      <Profile race={race} climbs={props.climbs} reachedKm={reached} cursorKm={props.cursorKm} onCursor={props.onCursor} onDragging={props.onDragging} />
     </View>
   );
 }

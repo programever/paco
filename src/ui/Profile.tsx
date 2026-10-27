@@ -20,10 +20,12 @@ type Props = {
   reachedKm: number;
   cursorKm: number | null;
   onCursor: (km: number | null) => void;
+  /** True while a finger is on the chart, so the page does not scroll under it. */
+  onDragging: (dragging: boolean) => void;
 };
 
 /** The course side on. Dragging a finger moves a cursor here and on the map. */
-export function Profile({ race, climbs, reachedKm, cursorKm, onCursor }: Props) {
+export function Profile({ race, climbs, reachedKm, cursorKm, onCursor, onDragging }: Props) {
   const { route } = race;
   const { low, high } = elevationRangeM(route);
   const total = Math.max(0.001, route.totalKm);
@@ -36,7 +38,7 @@ export function Profile({ race, climbs, reachedKm, cursorKm, onCursor }: Props) 
         .join(' '),
     [route],
   );
-  const scrub = useScrub(route, onCursor);
+  const scrub = useScrub(route, onCursor, onDragging);
   const ticks = ticksOf(race.checkpoints);
 
   return (
@@ -60,6 +62,9 @@ export function Profile({ race, climbs, reachedKm, cursorKm, onCursor }: Props) 
               strokeDasharray="3 3"
               opacity={0.6}
             />
+          ))}
+          {ticks.map(({ colour, checkpoint }) => (
+            <Circle key={`foot-${checkpoint.id}`} cx={x(checkpoint.km)} cy={height - 3} r={3} fill={colour} />
           ))}
           <Marker x={x(reachedKm)} y={y(atKm(route, reachedKm).elevationM)} colour={colors.paper} radius={4.5} />
           {cursorKm !== null && <Marker x={x(cursorKm)} y={y(atKm(route, cursorKm).elevationM)} colour={colors.scrub} radius={5} />}
@@ -109,6 +114,11 @@ function readout(route: Route, km: number): string {
  * Every checkpoint the chart marks, with its colour. Not the start: it is the
  * chart's left edge. Stations cycle through the hues; the finish has its own.
  */
+/** The colour a checkpoint wears on the chart, its legend and the map. The start is the chart's edge: plain paper. */
+export function legendColour(checkpoints: readonly Checkpoint[], checkpoint: Checkpoint): string {
+  return ticksOf(checkpoints).find((t) => t.checkpoint.id === checkpoint.id)?.colour ?? colors.paper;
+}
+
 export function ticksOf(checkpoints: readonly Checkpoint[]): { colour: string; checkpoint: Checkpoint }[] {
   let taken = 0;
   return checkpoints
@@ -116,10 +126,10 @@ export function ticksOf(checkpoints: readonly Checkpoint[]): { colour: string; c
     .map((checkpoint) => ({ colour: checkpoint.role === 'finish' ? colors.finish : stationColour(taken++), checkpoint }));
 }
 
-function useScrub(route: Route, onCursor: (km: number | null) => void) {
+function useScrub(route: Route, onCursor: (km: number | null) => void, onDragging: (dragging: boolean) => void) {
   const width = useRef(320);
-  const latest = useRef(onCursor);
-  latest.current = onCursor;
+  const latest = useRef({ onCursor, onDragging });
+  latest.current = { onCursor, onDragging };
   const at = (x: number) => Math.min(1, Math.max(0, x / Math.max(1, width.current))) * route.totalKm;
   const responder = useMemo(
     () =>
@@ -127,8 +137,13 @@ function useScrub(route: Route, onCursor: (km: number | null) => void) {
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
         onPanResponderTerminationRequest: () => false,
-        onPanResponderGrant: (e) => latest.current(at(e.nativeEvent.locationX)),
-        onPanResponderMove: (e) => latest.current(at(e.nativeEvent.locationX)),
+        onPanResponderGrant: (e) => {
+          latest.current.onDragging(true);
+          latest.current.onCursor(at(e.nativeEvent.locationX));
+        },
+        onPanResponderMove: (e) => latest.current.onCursor(at(e.nativeEvent.locationX)),
+        onPanResponderRelease: () => latest.current.onDragging(false),
+        onPanResponderTerminate: () => latest.current.onDragging(false),
       }),
     [route],
   );

@@ -4,6 +4,7 @@ import Svg, { Circle, G, Line, Path, Text as SvgText } from 'react-native-svg';
 
 import { LatLon, Plane, project } from '../core/geo';
 import { checkpointLabel, Race } from '../core/race';
+import { legendColour } from './Profile';
 import { atKm, Point, Route, slice } from '../core/route';
 import { colors, kmValue, mono } from './theme';
 
@@ -41,6 +42,8 @@ type Props = {
   /** The finger on the profile, mirrored here. */
   cursorKm: number | null;
   breadcrumbs: readonly LatLon[];
+  /** True while a finger is on the map, so the page does not scroll under it. */
+  onDragging: (dragging: boolean) => void;
 };
 
 /**
@@ -56,7 +59,7 @@ export function CourseMap(props: Props) {
   });
   const screenOf = (position: LatLon) => toScreen(project(route.projection, position));
   const onScreen = (points: Point[]) => points.map((p) => toScreen(p.plane));
-  const gestures = useMapGestures(route, view, props.onView);
+  const gestures = useMapGestures(route, view, props.onView, props.onDragging);
 
   // Behind the runner first, then ahead on top: where the course uses the same
   // ground twice, the part still to run wins, and its grey edge shows it has
@@ -85,10 +88,11 @@ export function CourseMap(props: Props) {
         ))}
         {race.checkpoints.map((c) => {
           const s = toScreen(atKm(route, c.km).plane);
-          const colour = c.km <= reachedKm ? colors.passed : colors.checkpoint;
+          const colour = legendColour(race.checkpoints, c);
+          const passed = c.km <= reachedKm && c.role !== 'start';
           return (
             <G key={c.id}>
-              <Circle cx={s.x} cy={s.y} r={5.5} fill={colour} stroke={colors.ink} strokeWidth={1.5} />
+              <Circle cx={s.x} cy={s.y} r={5.5} fill={colour} stroke={colors.ink} strokeWidth={1.5} opacity={passed ? 0.45 : 1} />
               {view.scale > labelScale && (
                 <SvgText x={s.x + 9} y={s.y + 4} fill={colour} fontSize={9} fontFamily={mono}>
                   {checkpointLabel(c)}
@@ -204,10 +208,10 @@ function clampScale(route: Route, scale: number): number {
 }
 
 /** One finger moves the map, two fingers zoom it. */
-function useMapGestures(route: Route, view: MapView, onView: (v: MapView) => void) {
+function useMapGestures(route: Route, view: MapView, onView: (v: MapView) => void, onDragging: (dragging: boolean) => void) {
   const width = useRef(mapWidth);
-  const latest = useRef({ view, onView });
-  latest.current = { view, onView };
+  const latest = useRef({ view, onView, onDragging });
+  latest.current = { view, onView, onDragging };
   const start = useRef<{ view: MapView; touches: { x: number; y: number }[] } | null>(null);
 
   const responder = useMemo(
@@ -217,6 +221,7 @@ function useMapGestures(route: Route, view: MapView, onView: (v: MapView) => voi
         onMoveShouldSetPanResponder: () => true,
         onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: (e) => {
+          latest.current.onDragging(true);
           start.current = { view: latest.current.view, touches: touchesOf(e.nativeEvent.touches) };
         },
         onPanResponderMove: (e) => {
@@ -241,6 +246,11 @@ function useMapGestures(route: Route, view: MapView, onView: (v: MapView) => voi
         },
         onPanResponderRelease: () => {
           start.current = null;
+          latest.current.onDragging(false);
+        },
+        onPanResponderTerminate: () => {
+          start.current = null;
+          latest.current.onDragging(false);
         },
       }),
     [route],
