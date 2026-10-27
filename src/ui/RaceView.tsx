@@ -86,7 +86,7 @@ function confirmEnd(onEnd: () => void) {
 }
 
 function Header({ run, now, onBack }: { run: Run | null; now: number; onBack: () => void }) {
-  const age = run === null ? null : now - run.updatedAt;
+  const age = run === null ? null : now - (run.latestFix?.takenAt ?? run.startedAt);
   return (
     <View style={styles.bar}>
       <View style={styles.brand}>
@@ -103,7 +103,7 @@ function Header({ run, now, onBack }: { run: Run | null; now: number; onBack: ()
         <Text style={[styles.freshness, age > 10 * 60_000 && styles.stale]}>
           km {kmValue(run.km)}
           {'\n'}
-          {age < 60_000 ? 'updated just now' : `updated ${longDuration(age)} ago`}
+          {age < 60_000 ? 'GPS just now' : `GPS ${longDuration(age)} ago`}
         </Text>
       )}
     </View>
