@@ -1,25 +1,40 @@
 {
   "expo": {
-    "name": "paco",
+    "name": "Paco",
     "slug": "paco",
-    "version": "1.0.0",
+    "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.programever.paco"
     },
-    "android": {
-      "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
-      },
-      "predictiveBackGestureEnabled": false
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    }
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "isIosBackgroundLocationEnabled": true,
+          "locationAlwaysAndWhenInUsePermission": "Paco reads your position during a race, also when the screen is locked, to tell you how far the next checkpoint is and if you leave the course.",
+          "locationWhenInUsePermission": "Paco reads your position to place you on the race course."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "enableRemoteNotifications": false,
+          "sounds": [
+            "./assets/sounds/use_poles.wav",
+            "./assets/sounds/no_poles.wav",
+            "./assets/sounds/km_5.wav",
+            "./assets/sounds/km_4.wav",
+            "./assets/sounds/km_3.wav",
+            "./assets/sounds/km_2.wav",
+            "./assets/sounds/km_1.wav",
+            "./assets/sounds/off_course.wav"
+          ]
+        }
+      ]
+    ]
   }
 }
