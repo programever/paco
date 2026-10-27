@@ -8,7 +8,8 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.programever.paco"
+      "bundleIdentifier": "com.programever.paco",
+      "appleTeamId": "59TC22CESH"
     },
     "plugins": [
       "./plugins/withoutRemotePush",
