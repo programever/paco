@@ -37,6 +37,11 @@
         }
       ]
     ],
-    "backgroundColor": "#101823"
+    "backgroundColor": "#101823",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#101823"
+    }
   }
 }
