@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { Alert, Linking, Pressable, SafeAreaView, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { LoadedRace } from '../app/races';
 import { Run } from '../core/run';
-import { helpMessage } from '../core/sos';
 import { fitAll, MapView } from './CourseMap';
 import { LocateTab } from './LocateTab';
 import { PlanTab } from './PlanTab';
@@ -69,7 +68,6 @@ export function RaceView({ loaded, run, now, onBack, onStart, onEnd, onDeclareKm
             <View style={styles.footer}>
               <QuietButton label="End" onPress={() => confirmEnd(onEnd)} />
             </View>
-            <HelpPanel run={run} />
           </>
         )}
         <Text style={styles.credit}>Runs fully offline · sends nothing anywhere</Text>
@@ -148,43 +146,6 @@ function Dock({ onDeclareKm }: { onDeclareKm: (km: number) => void }) {
   );
 }
 
-/** A ready-made text with the position. SMS goes out where 4G does not, as long as there is phone signal. */
-function HelpPanel({ run }: { run: Run }) {
-  const [phone, setPhone] = useState('');
-  const fix = run.latestFix;
-  const message = fix === null ? null : helpMessage(fix, run.nearest?.km ?? run.km);
-  const send = () => {
-    if (message === null) return Alert.alert('No position yet', 'Wait for GPS first.');
-    if (phone.trim() === '') return Alert.alert('No phone number', 'Type the number of the organiser or your family first.');
-    Linking.openURL(`sms:${phone.trim()}&body=${encodeURIComponent(message)}`);
-  };
-  return (
-    <View style={styles.help}>
-      <Text style={styles.helpHead}>When you need help</Text>
-      <Text style={styles.note}>
-        A ready-made text with your position. A text message goes out even without 4G, as long as there is phone signal.
-      </Text>
-      <View style={styles.helpRow}>
-        <TextInput
-          style={[styles.input, styles.phone]}
-          placeholder="Organiser or family number"
-          placeholderTextColor={colors.muted}
-          keyboardType="phone-pad"
-          value={phone}
-          onChangeText={setPhone}
-        />
-        <Pressable style={styles.mini} onPress={send}>
-          <Text style={styles.miniText}>Send text</Text>
-        </Pressable>
-      </View>
-      <Text style={styles.preview}>{message ?? 'Waiting for GPS to put your position in the message.'}</Text>
-      <Pressable style={[styles.mini, styles.share]} onPress={() => message !== null && Share.share({ message })}>
-        <Text style={styles.miniText}>Share or copy the message</Text>
-      </Pressable>
-    </View>
-  );
-}
-
 function TabButton({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
   return (
     <Pressable style={[styles.tab, on && styles.tabOn]} onPress={onPress}>
@@ -252,14 +213,5 @@ const styles = StyleSheet.create({
   footer: { marginTop: 14 },
   quiet: { minHeight: 44, borderRadius: 11, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   quietText: { fontSize: 15, fontWeight: '600', color: colors.muted },
-  help: { marginTop: 14, backgroundColor: colors.ink2, borderWidth: 1, borderColor: colors.line, borderRadius: 14, padding: 14, gap: 8 },
-  helpHead: { fontFamily: mono, fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.muted, fontWeight: '700' },
-  note: { fontSize: 13, color: colors.muted },
-  helpRow: { flexDirection: 'row', gap: 8 },
-  phone: { flex: 1 },
-  preview: { backgroundColor: colors.ink, borderWidth: 1, borderColor: colors.line, borderRadius: 10, padding: 10, fontFamily: mono, fontSize: 12, color: colors.paper },
-  mini: { minHeight: 40, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 9, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.ink3, justifyContent: 'center', alignItems: 'center' },
-  miniText: { fontFamily: mono, fontSize: 12.5, fontWeight: '700', color: colors.paper },
-  share: { alignSelf: 'flex-start' },
   credit: { fontFamily: mono, fontSize: 11, color: colors.muted, textAlign: 'center', marginTop: 22 },
 });
