@@ -27,6 +27,11 @@ file (version 1), so a plan saved from easy-pacer can be dropped in as-is.
 
 ## Adding a race from a GPX file
 
+Quick way, start and finish only:
+`node tools/gpx-to-race.mjs <file.gpx> "<name>" > races/<id>.json`, then list it in `src/app/races.ts`.
+
+By hand, with stations:
+
 1. Take the track points (`<trkpt lat lon><ele>`) in order as `samples`, and the
    `<wpt>` points as `waypoints`.
 2. Find each checkpoint's km on the track (nearest track point to the

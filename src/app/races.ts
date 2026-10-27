@@ -3,6 +3,7 @@ import { Race, raceFromPlanFile } from '../core/race';
 
 /** Every race in the app. To add one: put its JSON in races/ and list it here (see races/README.md). */
 const bundled: { id: string; load: () => unknown }[] = [
+  { id: 'phu-lam-park', load: () => require('../../races/phu-lam-park.json') },
   { id: 'la-mia-cung-cam', load: () => require('../../races/la-mia-cung-cam.json') },
   { id: 'hbs-ma-kieu-co-huong-la-ban', load: () => require('../../races/hbs-ma-kieu-co-huong-la-ban.json') },
   { id: 'hbs-thien-vien-la-ban', load: () => require('../../races/hbs-thien-vien-la-ban.json') },
