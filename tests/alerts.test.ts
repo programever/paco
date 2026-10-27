@@ -128,3 +128,27 @@ describe('gps weak', () => {
     expect(weak(400_000)).toEqual([]);
   });
 });
+
+describe('typed km', () => {
+  it('moves the runner and the passed checkpoints, and the next fix continues from there', async () => {
+    const { declareKm } = await import('../src/core/run');
+    const r = race(eastward(10_000), [{ name: 'A', km: 2 }, { name: 'B', km: 6 }]);
+    const ctx = context(r, 0);
+    let run = runAlong(ctx, 0, 500).run;
+    run = declareKm(ctx, run, 6.5, 600_000);
+    expect(run.km).toBeCloseTo(6.5);
+    expect(Object.keys(run.passedAt).sort()).toEqual(['1', '2', 'start']);
+    run = applyFix(ctx, run, fix(6600, 660_000)).run;
+    expect(run.km).toBeCloseTo(6.6, 1);
+  });
+});
+
+describe('help message', () => {
+  it('has the coordinates, the km, the accuracy and a map link', async () => {
+    const { helpMessage } = await import('../src/core/sos');
+    const text = helpMessage({ at: { lat: 10.514876, lon: 107.118466 }, accuracyM: 12, takenAt: new Date(2026, 11, 27, 9, 5).getTime() }, 7.34);
+    expect(text).toBe(
+      'Toi bi lac va hien o vi tri 10.514876, 107.118466 vao luc 27/12/2026 09:05. Diem gan nhat tren duong chay la km 7.3. Sai so GPS 12 m. Ban do: https://maps.google.com/?q=10.514876,107.118466',
+    );
+  });
+});

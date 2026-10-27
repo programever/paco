@@ -5,8 +5,8 @@ import { Alert } from 'react-native';
 import { startRace, stopRace } from './src/app/gpsTask';
 import { showWhileOpen } from './src/app/notify';
 import { loadRace } from './src/app/races';
-import { readRun } from './src/app/store';
-import { Run } from './src/core/run';
+import { readRun, readSettings, writeRun } from './src/app/store';
+import { declareKm, Run } from './src/core/run';
 import { askPermissions } from './src/ui/permissions';
 import { RaceList } from './src/ui/RaceList';
 import { RaceView } from './src/ui/RaceView';
@@ -45,9 +45,17 @@ export default function App() {
     refresh();
   };
 
-  const stop = async () => {
+  const end = async () => {
     await stopRace();
     setOpenRaceId(null);
+    refresh();
+  };
+
+  const declare = (km: number) => {
+    const current = readRun();
+    if (current === null || loaded === null) return;
+    const context = { race: loaded.race, climbs: loaded.climbs, startedAt: current.startedAt, settings: readSettings() };
+    writeRun(declareKm(context, current, km, Date.now()));
     refresh();
   };
 
@@ -57,15 +65,17 @@ export default function App() {
         <RaceList onOpen={setOpenRaceId} />
       ) : (
         <RaceView
+          key={loaded.race.id}
           loaded={loaded}
           run={run}
           now={now}
           onBack={() => setOpenRaceId(null)}
           onStart={start}
-          onStop={stop}
+          onEnd={end}
+          onDeclareKm={declare}
         />
       )}
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
     </>
   );
 }

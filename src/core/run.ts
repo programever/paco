@@ -1,4 +1,5 @@
 import { Alert, alertsFor, Context, emptyMemory, Memory } from './alerts';
+import { LatLon } from './geo';
 import { Candidate, Fix, isTrustworthy, resolve, RouteState, routeState } from './position';
 import { km, Km } from './route';
 
@@ -20,6 +21,10 @@ export type Run = {
   /** The fix matched two passes of the course equally well, so the milestone was not moved. */
   readonly ambiguous: boolean;
   readonly passedAt: Readonly<Record<string, number>>;
+  /** Where the runner has been, newest first: the grey dots on the map, the way back when lost. */
+  readonly breadcrumbs: readonly LatLon[];
+  /** The km was typed by the runner, not measured: the map puts the dot on the course at that km. */
+  readonly declared: boolean;
   readonly memory: Memory;
 };
 
@@ -35,8 +40,13 @@ export const startRun = (raceId: string, startedAt: number): Run => ({
   nearest: null,
   ambiguous: false,
   passedAt: {},
+  breadcrumbs: [],
+  declared: false,
   memory: emptyMemory,
 });
+
+/** Half an hour of trail at one fix every 10 s. */
+const maxBreadcrumbs = 180;
 
 /** A passed checkpoint is un-passed only when the runner is clearly behind it again, not on GPS noise. */
 const unpassMarginKm = 0.3;
@@ -66,6 +76,8 @@ export function applyFix(context: Context, run: Run, fix: Fix): { run: Run; aler
       nearest: resolution.nearest,
       ambiguous: resolution.kind === 'ambiguous',
       passedAt: passed(context, run.passedAt, reached, fix.takenAt),
+      breadcrumbs: [fix.at, ...run.breadcrumbs].slice(0, maxBreadcrumbs),
+      declared: trusted ? false : run.declared,
       memory,
     },
     alerts,
@@ -80,4 +92,22 @@ function passed(context: Context, before: Run['passedAt'], reached: number, now:
     else if (reached >= checkpoint.km) after[checkpoint.id] = now;
   }
   return after;
+}
+
+/**
+ * The runner typing a km is a decision, not a measurement, and overrides the
+ * last fix. The old fix is dropped so the next one is not judged against a
+ * place the runner has said they are no longer at.
+ */
+export function declareKm(context: Context, run: Run, reached: number, now: number): Run {
+  const at = km(Math.min(reached, context.race.route.totalKm));
+  return {
+    ...run,
+    km: at,
+    updatedAt: now,
+    lastFix: null,
+    ambiguous: false,
+    declared: true,
+    passedAt: passed(context, run.passedAt, at, now),
+  };
 }
