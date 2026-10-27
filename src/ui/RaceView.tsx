@@ -67,8 +67,8 @@ export function RaceView({ loaded, run, now, onBack, onStart, onStop }: Props) {
             width={drawWidth}
             height={drawWidth}
             reachedKm={reached}
-            runner={run?.lastFix?.at ?? null}
-            wayBack={run?.routeState === 'off-route' ? (run.nearest?.snap ?? null) : null}
+            runner={run?.latestFix?.at ?? null}
+            wayBack={run?.routeState === 'off-route' && run.memory.joined ? (run.nearest?.snap ?? null) : null}
           />
         </View>
       )}
@@ -94,33 +94,48 @@ export function RaceView({ loaded, run, now, onBack, onStart, onStop }: Props) {
 }
 
 function Status({ run, now }: { run: Run; now: number }) {
-  if (run.routeState === 'off-route' && run.nearest !== null && run.lastFix !== null) {
-    const metres = Math.round(haversineKm(run.lastFix.at, run.nearest.snap) * 1000);
-    const direction = compass(bearing(run.lastFix.at, run.nearest.snap));
+  const fix = run.latestFix;
+  if (fix === null) {
     return (
-      <View style={[styles.banner, styles.bannerDanger]}>
-        <Text style={styles.bannerTitle}>You are off the course</Text>
-        <Text style={styles.bannerText}>
-          The course is {metres} m to the {direction}. The red line on the map shows the way back.
-        </Text>
+      <View style={styles.banner}>
+        <Text style={styles.bannerText}>Waiting for GPS…</Text>
       </View>
     );
   }
-  const age = run.lastFix === null ? null : now - run.lastFix.takenAt;
-  const text =
-    run.lastFix === null
-      ? 'Waiting for GPS…'
-      : `GPS ±${Math.round(run.lastFix.accuracyM)} m · updated ${age !== null && age < 60_000 ? 'just now' : `${durationText(age ?? 0)} ago`}`;
+  const wayBack =
+    run.nearest === null
+      ? ''
+      : `${kmOrMetres(haversineKm(fix.at, run.nearest.snap))} to the ${compass(bearing(fix.at, run.nearest.snap))}`;
+  if (run.routeState === 'off-route' && !run.memory.joined) {
+    return (
+      <View style={styles.banner}>
+        <Text style={styles.bannerTitlePlain}>Not on the course yet</Text>
+        <Text style={styles.bannerText}>The nearest part of the course is {wayBack}.</Text>
+      </View>
+    );
+  }
+  if (run.routeState === 'off-route') {
+    return (
+      <View style={[styles.banner, styles.bannerDanger]}>
+        <Text style={styles.bannerTitle}>You are off the course</Text>
+        <Text style={styles.bannerText}>The course is {wayBack}. The red line on the map shows the way back.</Text>
+      </View>
+    );
+  }
+  const age = now - fix.takenAt;
   return (
     <View style={styles.banner}>
       <Text style={styles.bannerText}>
-        {text}
-        {run.ambiguous ? ' · Two places on the course match: position kept.' : ''}
+        GPS ±{Math.round(fix.accuracyM)} m · {age < 60_000 ? 'just now' : `${durationText(age)} ago`}
+        {fix.accuracyM > 50 ? ' · weak, position not moved' : ''}
+        {run.ambiguous ? ' · two places on the course match, position kept' : ''}
       </Text>
       <Text style={styles.bannerText}>Running for {durationText(now - run.startedAt)}</Text>
     </View>
   );
 }
+
+const kmOrMetres = (km: number): string => (km >= 1 ? kmText(km) : `${Math.round(km * 1000)} m`);
 
 function NextCheckpoint({ loaded, run, now }: { loaded: LoadedRace; run: Run; now: number }) {
   const { race } = loaded;
@@ -191,6 +206,7 @@ const styles = StyleSheet.create({
   banner: { padding: 12, borderRadius: 12, backgroundColor: colors.surface, gap: 4 },
   bannerDanger: { backgroundColor: colors.dangerSoft },
   bannerTitle: { fontSize: 18, fontWeight: '800', color: colors.danger },
+  bannerTitlePlain: { fontSize: 17, fontWeight: '700', color: colors.ink },
   bannerText: { fontSize: 15, color: colors.ink },
   next: { padding: 16, borderRadius: 16, backgroundColor: colors.accentSoft, gap: 4 },
   nextLabel: { fontSize: 14, fontWeight: '600', color: colors.muted, textTransform: 'uppercase' },

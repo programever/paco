@@ -79,6 +79,16 @@ describe('off course', () => {
     expect(said.body).toMatch(/^The course is 1[12]\d m to the south\.$/);
   });
 
+  it('says nothing before the runner has been on the course', () => {
+    let run = startRun('test', 0);
+    const far = (ms: number) => {
+      const result = applyFix(ctx, run, fix(0, ms, { northM: 5000 }));
+      run = result.run;
+      return result.alerts;
+    };
+    expect([...far(0), ...far(30_000), ...far(200_000)]).toEqual([]);
+  });
+
   it('says nothing for one stray fix', () => {
     let run = runAlong(ctx, 0, 1000).run;
     run = applyFix(ctx, run, fix(1000, 3_000_000, { northM: 120 })).run;

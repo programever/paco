@@ -1,6 +1,6 @@
 import { Climb } from './climbs';
 import { bearing, compass, haversineKm } from './geo';
-import { Candidate, Fix, RouteState } from './position';
+import { acceptableAccuracyM, Candidate, Fix, RouteState } from './position';
 import { checkpointLabel, clockText, cutoffMoment, nextAhead, nextWithCutoff, Race } from './race';
 import { ascentBetweenM, descentBetweenM } from './route';
 
@@ -16,6 +16,8 @@ export type Memory = {
   readonly polesOn: readonly number[];
   readonly polesOff: readonly number[];
   readonly cutoffWarned: readonly string[];
+  /** Off-course warnings only start once the runner has been on the course: not on the drive to the start. */
+  readonly joined: boolean;
   readonly offCourse: { readonly since: number; readonly lastSaidAt: number | null } | null;
   readonly weakSince: number | null;
   readonly weakSaid: boolean;
@@ -26,6 +28,7 @@ export const emptyMemory: Memory = {
   polesOn: [],
   polesOff: [],
   cutoffWarned: [],
+  joined: false,
   offCourse: null,
   weakSince: null,
   weakSaid: false,
@@ -39,8 +42,6 @@ export type Observation = {
   readonly reachedKm: number;
   readonly routeState: RouteState;
   readonly nearest: Candidate;
-  /** Whether the fix was precise enough to move the milestone. */
-  readonly trusted: boolean;
 };
 
 export type Settings = {
@@ -155,7 +156,8 @@ const poles: Rule = ({ climbs, settings }, memory, seen) => {
 };
 
 const offCourse: Rule = ({ settings }, memory, seen) => {
-  if (!settings.offCourse || seen.routeState === 'uncertain') return nothing(memory);
+  if (seen.routeState === 'on-route' && !memory.joined) return nothing({ ...memory, joined: true });
+  if (!settings.offCourse || !memory.joined || seen.routeState === 'uncertain') return nothing(memory);
   if (seen.routeState === 'on-route') {
     if (memory.offCourse === null) return nothing(memory);
     const back: Alert[] =
@@ -198,7 +200,7 @@ const cutoffSoon: Rule = ({ race, startedAt, settings }, memory, seen) => {
 };
 
 const gpsWeak: Rule = ({ settings }, memory, seen) => {
-  if (seen.trusted) {
+  if (seen.fix.accuracyM <= acceptableAccuracyM) {
     return memory.weakSince === null ? nothing(memory) : { alerts: [], memory: { ...memory, weakSince: null, weakSaid: false } };
   }
   const since = memory.weakSince ?? seen.now;

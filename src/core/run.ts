@@ -10,7 +10,10 @@ export type Run = {
   readonly updatedAt: number;
   /** When a fix was last looked at, precise or not. */
   readonly checkedAt: number;
+  /** The last fix precise and close enough to move the milestone. */
   readonly lastFix: Fix | null;
+  /** The newest fix of any quality: what the screen shows. */
+  readonly latestFix: Fix | null;
   readonly routeState: RouteState | null;
   /** The nearest point on the whole course: the way back when lost. */
   readonly nearest: Candidate | null;
@@ -27,6 +30,7 @@ export const startRun = (raceId: string, startedAt: number): Run => ({
   updatedAt: startedAt,
   checkedAt: 0,
   lastFix: null,
+  latestFix: null,
   routeState: null,
   nearest: null,
   ambiguous: false,
@@ -39,7 +43,7 @@ const unpassMarginKm = 0.3;
 
 export function applyFix(context: Context, run: Run, fix: Fix): { run: Run; alerts: Alert[] } {
   const resolution = resolve(context.race.route, run, fix);
-  if (resolution === null) return { run: { ...run, checkedAt: fix.takenAt }, alerts: [] };
+  if (resolution === null) return { run: { ...run, checkedAt: fix.takenAt, latestFix: fix }, alerts: [] };
   const trusted = isTrustworthy(fix, resolution.nearest) && resolution.kind === 'resolved';
   const reached = trusted && resolution.kind === 'resolved' ? resolution.progress.km : run.km;
   const state = routeState(fix, resolution.nearest);
@@ -49,7 +53,6 @@ export function applyFix(context: Context, run: Run, fix: Fix): { run: Run; aler
     reachedKm: reached,
     routeState: state,
     nearest: resolution.nearest,
-    trusted,
   });
   return {
     run: {
@@ -58,6 +61,7 @@ export function applyFix(context: Context, run: Run, fix: Fix): { run: Run; aler
       updatedAt: trusted ? fix.takenAt : run.updatedAt,
       checkedAt: fix.takenAt,
       lastFix: trusted ? fix : run.lastFix,
+      latestFix: fix,
       routeState: state,
       nearest: resolution.nearest,
       ambiguous: resolution.kind === 'ambiguous',
