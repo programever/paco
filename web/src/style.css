@@ -16,6 +16,8 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
+/* A display rule on an element must not beat the hidden attribute. */
+[hidden] { display: none !important; }
 html, body { margin: 0; background: var(--ink); color: var(--paper); font: 16px/1.4 system-ui, -apple-system, sans-serif; }
 button, input, select { font: inherit; color: inherit; }
 
