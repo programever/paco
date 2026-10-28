@@ -345,13 +345,16 @@ function renderMessages(race: Race, live: LiveDoc): void {
     select.innerHTML = names.map((n) => `<option ${n === (next?.name || 'Finish') ? 'selected' : ''}>${esc(n)}</option>`).join('');
   }
   const seen = seenIds(state.taps);
+  const waiting = state.messages.filter((m) => !seen.has(m.id)).length;
+  $('unseen').hidden = waiting === 0;
+  $('unseen').textContent = String(waiting);
   $('sent').innerHTML = [...state.messages]
     .reverse()
     .map((m) => {
       const tick = seen.has(m.id) ? '<span class="tick seen">✓✓ seen</span>' : m.at !== null && delivered(m.at, live.got) ? '<span class="tick">✓✓ on phone</span>' : m.at === null ? '<span class="tick">sending</span>' : '<span class="tick">✓ sent</span>';
       return `<li><span>${esc(m.text)} <span class="when">${m.at ? clockOf(m.at) : ''}</span></span>${tick}</li>`;
     })
-    .join('');
+    .join('') || '<li><span class="label">None</span></li>';
 }
 
 // ---------- wiring ----------
@@ -371,6 +374,15 @@ $('banner-ok').addEventListener('click', () => {
   if (state.banner) state.dismissed.add(state.banner.key);
   render();
 });
+document.querySelectorAll<HTMLButtonElement>('.tab').forEach((tab) =>
+  tab.addEventListener('click', () => {
+    const name = tab.dataset.tab;
+    document.querySelectorAll<HTMLElement>('.tab').forEach((t) => t.classList.toggle('on', t === tab));
+    document.querySelectorAll<HTMLElement>('.pane').forEach((p) => (p.hidden = p.dataset.pane !== name));
+    // Leaflet measures its box when shown; a map drawn while hidden has the wrong size.
+    if (name === 'status') map?.invalidateSize();
+  }),
+);
 $('to-runner').addEventListener('click', () => toRunner());
 $('to-route').addEventListener('click', () => toRoute());
 // Browsers only play sound after a tap on the page.

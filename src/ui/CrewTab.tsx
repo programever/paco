@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 
 import { Crew, crewTap, readCrew, syncCrew } from '../app/crew';
 import { crewLink, injuries, needs, Tap, TapKind, tapLabel } from '../crew/protocol';
@@ -96,7 +96,9 @@ export function CrewTab({ run, now }: { run: Run | null; now: number }) {
       {crew.inbox.length === 0 ? (
         <Text style={styles.muted}>None</Text>
       ) : (
-        crew.inbox.map((message) => (
+        // Its own scroll box: a long chat must not push the crew link off the page.
+        <ScrollView style={styles.inbox} nestedScrollEnabled>
+          {crew.inbox.map((message) => (
           <View key={message.id} style={styles.message}>
             <View style={styles.messageBody}>
               <Text style={styles.messageText}>{message.text}</Text>
@@ -110,7 +112,8 @@ export function CrewTab({ run, now }: { run: Run | null; now: number }) {
               </Pressable>
             )}
           </View>
-        ))
+          ))}
+        </ScrollView>
       )}
 
       <Text style={styles.section}>CREW LINK</Text>
@@ -164,6 +167,7 @@ const styles = StyleSheet.create({
   sosText: { fontFamily: mono, fontSize: 22, fontWeight: '900', letterSpacing: 4, color: '#FFFFFF' },
   section: { fontFamily: mono, fontSize: 11, fontWeight: '700', letterSpacing: 1, color: colors.muted, marginTop: 22, marginBottom: 8 },
   muted: { fontSize: 12.5, color: colors.muted },
+  inbox: { maxHeight: 320 },
   message: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, marginBottom: 8, borderRadius: 12, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.ink2 },
   messageBody: { flex: 1, gap: 3 },
   messageText: { fontSize: 16, fontWeight: '600', color: colors.paper },

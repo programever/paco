@@ -93,3 +93,13 @@ tr.passed td { color: var(--muted); }
 }
 .banner > div { flex: 1; }
 .banner .mini { background: #fff; color: var(--bad); border-color: #fff; }
+
+.tabs { display: flex; gap: 6px; margin-top: 14px; }
+.tab {
+  flex: 1; min-height: 44px; border-radius: 11px; border: 1px solid var(--line); background: var(--ink2);
+  font: 700 13px var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--muted); cursor: pointer;
+}
+.tab.on { background: var(--tape); border-color: var(--tape); color: var(--on-tape); }
+.badge { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--bad); color: #fff; font-size: 11px; line-height: 18px; }
+/* Long lists scroll inside their box, so the page stays short. */
+.scroll { max-height: 50vh; overflow-y: auto; overscroll-behavior: contain; }
