@@ -4,11 +4,12 @@ import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput
 import { LoadedRace } from '../app/races';
 import { Run } from '../core/run';
 import { fitAll, MapView } from './CourseMap';
+import { CrewTab } from './CrewTab';
 import { LocateTab } from './LocateTab';
 import { PlanTab } from './PlanTab';
 import { colors, kmValue, longDuration, mono } from './theme';
 
-type Tab = 'plan' | 'locate';
+type Tab = 'plan' | 'locate' | 'crew';
 
 type Props = {
   loaded: LoadedRace;
@@ -47,9 +48,12 @@ export function RaceView({ loaded, run, now, onBack, onStart, onEnd, onDeclareKm
         <View style={styles.tabs}>
           <TabButton label="Plan" on={tab === 'plan'} onPress={() => setTab('plan')} />
           <TabButton label="Locate" on={tab === 'locate'} onPress={() => setTab('locate')} />
+          <TabButton label="Crew" on={tab === 'crew'} onPress={() => setTab('crew')} />
         </View>
         {tab === 'plan' ? (
           <PlanTab race={race} reachedKm={run?.km ?? 0} startedAt={run?.startedAt ?? race.startsAt} passedAt={run?.passedAt ?? {}} now={now} />
+        ) : tab === 'crew' ? (
+          <CrewTab run={run} now={now} />
         ) : (
           <LocateTab
             race={race}

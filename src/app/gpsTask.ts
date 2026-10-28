@@ -3,6 +3,7 @@ import * as TaskManager from 'expo-task-manager';
 
 import { Fix } from '../core/position';
 import { applyFix, Run, startRun } from '../core/run';
+import { crewEndRun, crewStartRun, syncCrew } from './crew';
 import { notify } from './notify';
 import { loadRace } from './races';
 import { clearRun, readRun, readSettings, writeRun } from './store';
@@ -19,7 +20,9 @@ const processEveryMs = 10_000;
 export async function startRace(raceId: string): Promise<void> {
   const loaded = loadRace(raceId);
   const now = Date.now();
-  writeRun(startRun(raceId, loaded?.race.startsAt ?? now));
+  const run = startRun(raceId, loaded?.race.startsAt ?? now);
+  writeRun(run);
+  void crewStartRun(run);
   await Location.startLocationUpdatesAsync(gpsTask, {
     accuracy: Location.Accuracy.BestForNavigation,
     distanceInterval: 5,
@@ -31,7 +34,10 @@ export async function startRace(raceId: string): Promise<void> {
 
 export async function stopRace(): Promise<void> {
   if (await Location.hasStartedLocationUpdatesAsync(gpsTask)) await Location.stopLocationUpdatesAsync(gpsTask);
+  const run = readRun();
   clearRun();
+  // The crew page learns the race is over; without signal it simply keeps the last position.
+  if (run !== null) void crewEndRun(run);
 }
 
 // iOS can deliver several batches at once, for example after a relaunch;
@@ -56,6 +62,8 @@ async function handle(locations: Location.LocationObject[]): Promise<void> {
   const result = applyFix(context, run, toFix(mostAccurate(locations)));
   writeRun(result.run);
   for (const alert of result.alerts) await notify(alert);
+  // Not awaited: a slow request on one bar of signal must not hold up the next fix.
+  void syncCrew();
 }
 
 /** Off the course every fix counts, so the way back is always fresh. */

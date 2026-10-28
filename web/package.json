@@ -1,0 +1,19 @@
+{
+  "name": "paco-crew",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Paco crew page: follow the runner on a map, see their status, send them messages. Data in Firestore.",
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "build": "node build.mjs",
+    "serve": "python3 -m http.server 8766 --bind 127.0.0.1 --directory dist"
+  },
+  "devDependencies": {
+    "@types/leaflet": "^1.9.20",
+    "esbuild": "^0.25.0",
+    "firebase": "^12.19.0",
+    "leaflet": "1.9.4",
+    "typescript": "~5.9.2"
+  }
+}

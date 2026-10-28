@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#101823" />
+    <title>Paco Crew</title>
+    <link rel="stylesheet" href="leaflet.css" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <div class="mark">PA<span>CO</span> CREW</div>
+      <button id="sound" class="mini">Sound off</button>
+    </header>
+
+    <main>
+      <div id="banner" class="banner" hidden>
+        <div id="banner-text"></div>
+        <button id="banner-ok" class="mini">OK</button>
+      </div>
+
+      <p id="note" class="note" hidden></p>
+
+      <section id="race" hidden>
+        <h1 id="race-name"></h1>
+        <p id="race-facts" class="facts"></p>
+
+        <div id="status" class="card status"></div>
+        <div id="next" class="card"></div>
+
+        <div class="card map-card">
+          <div id="map"></div>
+          <div class="map-foot">
+            <button id="to-runner" class="mini">Runner</button>
+            <button id="to-route" class="mini">Full route</button>
+          </div>
+        </div>
+
+        <div class="card"><svg id="profile" viewBox="0 0 1000 180" preserveAspectRatio="none"></svg></div>
+
+        <h2>Message</h2>
+        <div class="card">
+          <div id="quick" class="quick"></div>
+          <div class="row">
+            <select id="cp"></select>
+            <button id="waiting" class="mini">Waiting there</button>
+          </div>
+          <form id="free" class="row">
+            <input id="text" maxlength="200" autocomplete="off" placeholder="Message" />
+            <button class="mini solid">Send</button>
+          </form>
+          <ul id="sent" class="list"></ul>
+        </div>
+
+        <h2>Checkpoints</h2>
+        <div class="card"><table id="table"></table></div>
+
+        <h2>Timeline</h2>
+        <ul id="timeline" class="list card"></ul>
+      </section>
+    </main>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

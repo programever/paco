@@ -32,7 +32,8 @@
             "./assets/sounds/km_3.wav",
             "./assets/sounds/km_2.wav",
             "./assets/sounds/km_1.wav",
-            "./assets/sounds/off_route.wav"
+            "./assets/sounds/off_route.wav",
+            "./assets/sounds/crew_message.wav"
           ]
         }
       ]

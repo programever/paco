@@ -5,7 +5,7 @@ import { checkpointLabel, clockText, cutoffMoment, nextAhead, nextWithCutoff, Ra
 import { ascentBetweenM, descentBetweenM } from './route';
 
 /** The bundled voice files. Kept few on purpose: details go in the text, not the voice. */
-export type Voice = 'use_poles' | 'no_poles' | 'km_5' | 'km_4' | 'km_3' | 'km_2' | 'km_1' | 'off_route';
+export type Voice = 'use_poles' | 'no_poles' | 'km_5' | 'km_4' | 'km_3' | 'km_2' | 'km_1' | 'off_route' | 'crew_message';
 
 /** `voice: null` plays the normal notification sound. */
 export type Alert = { readonly voice: Voice | null; readonly title: string; readonly body: string };
