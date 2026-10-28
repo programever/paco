@@ -147,7 +147,8 @@ holds the built files.
 
 ## Billing guard (habits-433f8)
 
-Billing is linked to the Firebase project `habits-433f8` (shared with Haba, Trani, Cismo). A budget
+Billing is **not** linked now (removed 2026-10-28; the project is on the free plan). The guard below stays
+ready for the day billing is linked to `habits-433f8` again (shared with Haba, Trani, Cismo). A budget
 "Guard 10 USD habits-433f8" (₫265,000 a month) posts to the Pub/Sub topic `billing-guard`; the function in
 `cloud/billing-guard` turns billing off for the project when the month's cost reaches the budget. Firebase
 then falls back to the free plan: the apps keep working inside the free amounts. To turn billing on again,
