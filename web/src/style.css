@@ -125,4 +125,4 @@ tr.passed td { color: var(--muted); }
 a.mini.link { display: inline-flex; align-items: center; text-decoration: none; color: var(--paper); }
 #next a.mini.link { margin-top: 12px; }
 .map-foot { flex-wrap: wrap; }
-a.drive { color: var(--cp); font-family: var(--mono); font-size: 12px; white-space: nowrap; text-decoration: none; }
+a.ride { color: var(--cp); font-family: var(--mono); font-size: 12px; white-space: nowrap; text-decoration: none; }
