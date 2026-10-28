@@ -144,3 +144,15 @@ npm run serve      # http://127.0.0.1:8766/#KEY
 Every push to `main` runs `.github/workflows/crew-page.yml`: Paco's tests, then the page build, then
 GitHub Pages takes `web/dist` straight from that run (Settings, Pages, Source: GitHub Actions). No branch
 holds the built files.
+
+## Billing guard (habits-433f8)
+
+Billing is linked to the Firebase project `habits-433f8` (shared with Haba, Trani, Cismo). A budget
+"Guard 10 USD habits-433f8" (₫265,000 a month) posts to the Pub/Sub topic `billing-guard`; the function in
+`cloud/billing-guard` turns billing off for the project when the month's cost reaches the budget. Firebase
+then falls back to the free plan: the apps keep working inside the free amounts. To turn billing on again,
+link the billing account by hand. The function runs as `billing-guard@habits-433f8.iam.gserviceaccount.com`
+(roles: Cloud Run Invoker on the function, Project Billing Manager on the project).
+
+Google Maps Platform is not offered in Vietnam (a "prohibited territory"), so the crew page uses free tile maps
+and opens the Google Maps app only through public links.
