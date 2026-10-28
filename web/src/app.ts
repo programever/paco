@@ -288,20 +288,10 @@ function render(): void {
         </tr>`,
       )
       .join('');
-
-  const events = [
-    ...state.taps.map((t) => ({ at: t.t, text: t.kind === 'seen' ? `Runner: got "${messageText(t.msg)}"` : `Runner: ${[tapLabel[t.kind], ...t.items].join(' · ')}` })),
-    ...state.messages.map((m) => ({ at: m.at ?? now, text: `You: ${m.text}` })),
-  ].sort((a, b) => b.at - a.at);
-  $('timeline').innerHTML = events.length
-    ? events.map((e) => `<li><span>${esc(e.text)}</span><span class="when">${clockOf(e.at)}</span></li>`).join('')
-    : '<li><span class="label">Nothing yet</span></li>';
 }
 
 const cell = (label: string, value: string, bad = false) =>
   `<div><div class="label">${label}</div><div class="value ${bad ? 'stale' : ''}">${esc(value)}</div></div>`;
-
-const messageText = (id: string) => state.messages.find((m) => m.id === id)?.text ?? 'a message';
 
 function renderMap(race: Race, live: LiveDoc): void {
   if (map === null) {
@@ -379,13 +369,24 @@ function renderMessages(race: Race, live: LiveDoc): void {
   const waiting = state.messages.filter((m) => !seen.has(m.id)).length;
   $('unseen').hidden = waiting === 0;
   $('unseen').textContent = String(waiting);
-  $('sent').innerHTML = [...state.messages]
-    .reverse()
-    .map((m) => {
+  // One chat: the runner's taps on the left, the crew's messages on the right, newest at the bottom.
+  // "Got it" is not a bubble of its own: it is the tick on the message it answers.
+  const bubbles = [
+    ...state.taps
+      .filter((t) => t.kind !== 'seen')
+      .map((t) => ({
+        at: t.t,
+        html: `<li class="bubble runner ${statusTone[t.kind]}"><div>${esc([tapLabel[t.kind], ...t.items].join(' · '))}</div><span class="when">${clockOf(t.t)}</span></li>`,
+      })),
+    ...state.messages.map((m) => {
       const tick = seen.has(m.id) ? '<span class="tick seen">✓✓ seen</span>' : m.at !== null && delivered(m.at, live.got) ? '<span class="tick">✓✓ on phone</span>' : m.at === null ? '<span class="tick">sending</span>' : '<span class="tick">✓ sent</span>';
-      return `<li><span>${esc(m.text)} <span class="when">${m.at ? clockOf(m.at) : ''}</span></span>${tick}</li>`;
-    })
-    .join('') || '<li><span class="label">None</span></li>';
+      return { at: m.at ?? Date.now(), html: `<li class="bubble crew"><div>${esc(m.text)}</div><span class="when">${m.at ? clockOf(m.at) : ''}</span> ${tick}</li>` };
+    }),
+  ].sort((a, b) => a.at - b.at);
+  const box = $('timeline');
+  const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+  box.innerHTML = bubbles.map((b) => b.html).join('') || '<li class="empty">Nothing yet</li>';
+  if (atBottom) box.scrollTop = box.scrollHeight;
 }
 
 // ---------- wiring ----------

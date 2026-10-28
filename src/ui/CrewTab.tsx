@@ -16,7 +16,15 @@ export function CrewTab({ run, now }: { run: Run | null; now: number }) {
   const [picking, setPicking] = useState<Picking>(null);
   const [chosen, setChosen] = useState<string[]>([]);
 
+  const [checking, setChecking] = useState(false);
   const reload = () => setCrew(readCrew());
+  const check = () => {
+    setChecking(true);
+    void syncCrew({ inbox: true }).then(() => {
+      setChecking(false);
+      reload();
+    });
+  };
   useEffect(() => {
     if (run === null) return;
     const check = () => void syncCrew({ inbox: true }).then(reload);
@@ -92,7 +100,14 @@ export function CrewTab({ run, now }: { run: Run | null; now: number }) {
         </>
       )}
 
-      <Text style={styles.section}>MESSAGES</Text>
+      <View style={styles.sectionRow}>
+        <Text style={[styles.section, styles.sectionInRow]}>MESSAGES</Text>
+        {run !== null && (
+          <Pressable style={({ pressed }) => [styles.check, pressed && styles.pressed]} onPress={check} disabled={checking}>
+            <Text style={styles.checkText}>{checking ? 'Checking…' : 'Check messages'}</Text>
+          </Pressable>
+        )}
+      </View>
       {crew.inbox.length === 0 ? (
         <Text style={styles.muted}>None</Text>
       ) : (
@@ -165,6 +180,10 @@ const styles = StyleSheet.create({
   sendText: { fontSize: 17, fontWeight: '800', color: colors.onTape },
   sos: { marginTop: 10, minHeight: 64, borderRadius: 14, backgroundColor: colors.late, alignItems: 'center', justifyContent: 'center' },
   sosText: { fontFamily: mono, fontSize: 22, fontWeight: '900', letterSpacing: 4, color: '#FFFFFF' },
+  sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 22, marginBottom: 8 },
+  sectionInRow: { marginTop: 0, marginBottom: 0 },
+  check: { minHeight: 40, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderColor: colors.tape, justifyContent: 'center' },
+  checkText: { fontFamily: mono, fontSize: 13, fontWeight: '800', color: colors.tape },
   section: { fontFamily: mono, fontSize: 11, fontWeight: '700', letterSpacing: 1, color: colors.muted, marginTop: 22, marginBottom: 8 },
   muted: { fontSize: 12.5, color: colors.muted },
   inbox: { maxHeight: 320 },
