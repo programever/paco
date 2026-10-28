@@ -131,3 +131,35 @@ export async function messagesAfter(key: string, since: string): Promise<CrewMes
     return [{ id: row.document.name.split('/').pop() ?? '', text, at }];
   });
 }
+
+/** Names of the records in `collection` older than `before`, at most `limit`. */
+async function olderThan(key: string, collection: 'taps' | 'msgs', before: number, limit: number): Promise<string[]> {
+  const field = collection === 'taps' ? 't' : 'at';
+  const value = collection === 'taps' ? { integerValue: String(Math.round(before)) } : { timestampValue: new Date(before).toISOString() };
+  const rows = (await post(`${base}/paco/${key}:runQuery`, {
+    structuredQuery: {
+      from: [{ collectionId: collection }],
+      select: { fields: [{ fieldPath: '__name__' }] },
+      where: { fieldFilter: { field: { fieldPath: field }, op: 'LESS_THAN', value } },
+      limit,
+    },
+  })) as { document?: { name: string } }[];
+  return rows.flatMap((row) => (row.document === undefined ? [] : [row.document.name]));
+}
+
+/**
+ * Deletes every tap and crew message from before `before` (a new run's start).
+ * Only older records: if this runs late, the new run's records stay.
+ */
+export async function deleteBefore(key: string, before: number): Promise<number> {
+  let deleted = 0;
+  for (const collection of ['taps', 'msgs'] as const) {
+    for (;;) {
+      const names = await olderThan(key, collection, before, 300);
+      if (names.length === 0) break;
+      await post(`${base}:commit`, { writes: names.map((name) => ({ delete: name })) });
+      deleted += names.length;
+    }
+  }
+  return deleted;
+}

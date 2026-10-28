@@ -1,7 +1,7 @@
 import { File, Paths } from 'expo-file-system';
 
 import { keyLength, Live, Pushover, randomId, Tap, TapKind } from '../crew/protocol';
-import { CrewMessage, messagesAfter, RestError, writeLive, writeTap } from '../crew/rest';
+import { CrewMessage, deleteBefore, messagesAfter, RestError, writeLive, writeTap } from '../crew/rest';
 import { Run } from '../core/run';
 import { notify } from './notify';
 import { readRun } from './store';
@@ -30,6 +30,8 @@ export type Crew = {
   readonly liveDue: boolean;
   /** When the last trip reached the server (phone time), 0 never. */
   readonly reachedAt: number;
+  /** The last run's taps and messages are still on the server: delete them on the next trip. */
+  readonly wipeDue: boolean;
 };
 
 const crewFile = new File(Paths.document, 'crew.json');
@@ -62,6 +64,7 @@ export function readCrew(): Crew {
     liveAt: 0,
     liveDue: false,
     reachedAt: 0,
+    wipeDue: false,
     ...stored,
   };
   if (crew.key.length >= keyLength) return crew;
@@ -82,9 +85,12 @@ const update = (change: (crew: Crew) => Crew): Crew => {
   return next;
 };
 
-/** A new run: a new inbox, and the page learns the race at once. Taps still waiting are kept. */
+/**
+ * A new run starts clean (Iker, 2026-10-28): the last race's taps, messages and
+ * unsent taps are dropped here, and deleted on the server on the next trip.
+ */
 export function crewStartRun(run: Run): Promise<void> {
-  update((crew) => ({ ...crew, runStart: run.startedAt, sent: [], inbox: [], liveDue: true }));
+  update((crew) => ({ ...crew, runStart: run.startedAt, queue: [], sent: [], inbox: [], liveDue: true, wipeDue: true }));
   return syncCrew();
 }
 
@@ -117,7 +123,14 @@ async function tripNow({ ended, inbox }: { ended?: Run; inbox?: boolean }): Prom
   const crew = readCrew();
   const now = Date.now();
   const positionDue = run !== null && now - crew.liveAt >= positionEveryMs;
-  if (crew.queue.length === 0 && !crew.liveDue && !positionDue && !inbox) return;
+  if (crew.queue.length === 0 && !crew.liveDue && !crew.wipeDue && !positionDue && !inbox) return;
+
+  // Before anything new goes up: the server only deletes records older than this run.
+  if (crew.wipeDue && crew.runStart > 0) {
+    await deleteBefore(crew.key, crew.runStart)
+      .then(() => update((c) => ({ ...c, wipeDue: false })))
+      .catch(() => {});
+  }
 
   // Messages first, so the live record can already say which ones arrived.
   // Each step on its own: one refused request must not block the others.

@@ -95,7 +95,7 @@ service cloud.firestore {
         && request.resource.data.got is string
         && request.resource.data.got.size() <= 40
         && request.resource.data.at == request.time;
-      allow delete: if false;
+      allow delete: if key.size() >= 20;
     }
     match /paco/{key}/taps/{id} {
       allow read: if key.size() >= 20;
@@ -109,7 +109,8 @@ service cloud.firestore {
         && request.resource.data.msg.size() <= 40
         && request.resource.data.t is int
         && request.resource.data.sent == request.time;
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if key.size() >= 20;
     }
     match /paco/{key}/msgs/{id} {
       allow read: if key.size() >= 20;
@@ -119,15 +120,16 @@ service cloud.firestore {
         && request.resource.data.text.size() > 0
         && request.resource.data.text.size() <= 200
         && request.resource.data.at == request.time;
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if key.size() >= 20;
     }
   }
 }
 ```
 
 In plain words for `paco/`: whoever has the key (20 characters or more) can read; records must have the right
-shape; times named `at` and `sent` must be the server's own time; nothing can be deleted, and only the live
-record can be changed.
+shape; times named `at` and `sent` must be the server's own time; only the live record can be changed. Whoever
+has the key can delete: Paco deletes the last race's taps and messages when a new race starts.
 
 ### Build
 
