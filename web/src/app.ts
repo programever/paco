@@ -13,7 +13,7 @@ import { atKm, slice } from '../../src/core/route';
 import { clockText, Race, raceFromPlanFile } from '../../src/core/race';
 import { arrivals, delivered, isStale, latestStatus, seenIds, statusTone } from '../../src/crew/follow';
 import {
-  firebaseConfig, keyLength, Live, readCrewLink, urgentMessages, maxMessageLength, quickMessages, Tap, TapKind, tapKinds, tapLabel, urgentKinds, waitingAt,
+  firebaseConfig, keyLength, Live, readCrewLink, maxMessageLength, quickMessages, Tap, TapKind, tapKinds, tapLabel, urgentKinds, waitingAt,
 } from '../../src/crew/protocol';
 import { clockOf, kmValue, longDuration, signedDuration } from '../../src/ui/theme';
 
@@ -129,29 +129,30 @@ function send(text: string): void {
   addDoc(collection(db, 'paco', state.key, 'msgs'), { text: clean, at: serverTimestamp() }).catch((e: Error) =>
     alert('Could not send: ' + e.message),
   );
-  void pushToRunner(clean);
+  void pushToRunner();
 }
 
 /**
- * Pushover rings the runner's phone within seconds, locked or not. Paco's own
- * check still fetches the message later, for "Got it".
+ * Pushover is only a doorbell: it rings the runner's phone within seconds,
+ * locked or not, and says "open Paco". The message itself is read in Paco.
+ * Always the same text, so the phone stacks the doorbells into one pile.
  */
-async function pushToRunner(text: string): Promise<void> {
+async function pushToRunner(): Promise<void> {
   if (state.pushover === null) return;
-  const urgent = urgentMessages.includes(text);
   const body = new URLSearchParams({
     token: state.pushover.token,
     user: state.pushover.user,
-    title: 'Paco crew',
-    message: text,
-    priority: urgent ? '2' : '1',
-    ...(urgent ? { retry: '60', expire: '1800' } : {}),
+    title: 'Paco',
+    message: 'New message from your crew. Open Paco.',
+    priority: '1',
+    url: 'com.programever.paco://',
+    url_title: 'Open Paco',
   });
   try {
     const response = await fetch('https://api.pushover.net/1/messages.json', { method: 'POST', body });
     if (!response.ok) throw new Error(`Pushover said ${response.status}`);
   } catch (e) {
-    alert('Saved, but the instant ring failed: ' + (e as Error).message + '. The runner gets it within 5 minutes.');
+    alert('Saved, but the doorbell failed: ' + (e as Error).message + '. The runner gets it within 5 minutes.');
   }
 }
 

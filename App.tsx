@@ -1,7 +1,8 @@
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, AppState } from 'react-native';
 
+import { syncCrew } from './src/app/crew';
 import { startRace, stopRace } from './src/app/gpsTask';
 import { showWhileOpen } from './src/app/notify';
 import { loadRace } from './src/app/races';
@@ -29,6 +30,14 @@ export default function App() {
   useEffect(() => {
     const timer = setInterval(refresh, refreshEveryMs);
     return () => clearInterval(timer);
+  }, [refresh]);
+
+  // Opened from the crew's Pushover doorbell: fetch the message now, not on the next check.
+  useEffect(() => {
+    const listener = AppState.addEventListener('change', (next) => {
+      if (next === 'active' && readRun() !== null) void syncCrew({ inbox: true }).then(refresh);
+    });
+    return () => listener.remove();
   }, [refresh]);
 
   const raceId = run?.raceId ?? openRaceId;

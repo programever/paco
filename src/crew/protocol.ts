@@ -44,9 +44,6 @@ export function readCrewLink(hash: string): { key: string; pushover: Pushover | 
   return { key: params.get('k') ?? '', pushover: token !== '' && user !== '' ? { token, user } : null };
 }
 
-/** "Call me" rings until the runner taps it; every other message rings once, even in quiet hours. */
-export const urgentMessages: readonly string[] = ['Call me'];
-
 /** The rules only accept keys at least this long. */
 export const keyLength = 24;
 
