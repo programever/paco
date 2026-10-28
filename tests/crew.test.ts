@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { arrivals, delivered, isStale, latestStatus, paceMsPerKm, staleAfterMs } from '../src/crew/follow';
-import { keyLength, randomId, Tap } from '../src/crew/protocol';
+import { crewLink, keyLength, randomId, readCrewLink, Tap } from '../src/crew/protocol';
 import { liveFields, tapFields } from '../src/crew/rest';
 import { eastward, race } from './fixtures';
 
@@ -20,6 +20,13 @@ describe('crew records', () => {
     expect(Object.keys(liveFields(base)).sort()).toEqual(['got', 'km', 'race', 'start', 'state']);
     const fixed = liveFields({ ...base, lat: 10.5, lon: 107, acc: Infinity, fix: 5 });
     expect(fixed.acc).toEqual({ doubleValue: 99_999 });
+  });
+
+  it('carries the Pushover codes in the link and reads both link forms', () => {
+    const pushover = { token: 'a'.repeat(30), user: 'u'.repeat(30) };
+    const link = crewLink('k'.repeat(24), pushover);
+    expect(readCrewLink(new URL(link).hash)).toEqual({ key: 'k'.repeat(24), pushover });
+    expect(readCrewLink('#' + 'k'.repeat(24))).toEqual({ key: 'k'.repeat(24), pushover: null });
   });
 
   it('makes keys the rules accept', () => {

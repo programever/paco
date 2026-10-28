@@ -1,6 +1,6 @@
 import { File, Paths } from 'expo-file-system';
 
-import { keyLength, Live, randomId, Tap, TapKind } from '../crew/protocol';
+import { keyLength, Live, Pushover, randomId, Tap, TapKind } from '../crew/protocol';
 import { CrewMessage, messagesAfter, RestError, writeLive, writeTap } from '../crew/rest';
 import { Run } from '../core/run';
 import { notify } from './notify';
@@ -33,6 +33,16 @@ export type Crew = {
 };
 
 const crewFile = new File(Paths.document, 'crew.json');
+
+/**
+ * Pushover's codes, put into the app at build time from `.env.local` (not in
+ * git). Paco only passes them on inside the crew link.
+ */
+export function pushover(): Pushover | null {
+  const token = process.env.EXPO_PUBLIC_PUSHOVER_TOKEN ?? '';
+  const user = process.env.EXPO_PUBLIC_PUSHOVER_USER ?? '';
+  return token !== '' && user !== '' ? { token, user } : null;
+}
 
 export function readCrew(): Crew {
   let stored: Partial<Crew> | null = null;

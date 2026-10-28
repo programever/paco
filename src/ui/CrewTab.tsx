@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 
-import { Crew, crewTap, readCrew, syncCrew } from '../app/crew';
+import { Crew, crewTap, pushover, readCrew, syncCrew } from '../app/crew';
 import { crewLink, injuries, needs, Tap, TapKind, tapLabel } from '../crew/protocol';
 import { Run } from '../core/run';
 import { clockOf, colors, longDuration, mono } from './theme';
@@ -117,7 +117,7 @@ export function CrewTab({ run, now }: { run: Run | null; now: number }) {
       )}
 
       <Text style={styles.section}>CREW LINK</Text>
-      <Pressable style={({ pressed }) => [styles.link, pressed && styles.pressed]} onPress={() => void Share.share({ message: crewLink(crew.key) })}>
+      <Pressable style={({ pressed }) => [styles.link, pressed && styles.pressed]} onPress={() => void Share.share({ message: crewLink(crew.key, pushover()) })}>
         <Text style={styles.linkText} numberOfLines={1}>
           {crewLink(crew.key)}
         </Text>

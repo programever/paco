@@ -20,7 +20,32 @@ export const firebaseConfig = {
 };
 
 export const crewPageUrl = 'https://programever.github.io/paco/';
-export const crewLink = (key: string): string => `${crewPageUrl}#${key}`;
+
+/** Pushover's codes for the runner's phone. They ride in the link, never in the code: see README. */
+export type Pushover = { readonly token: string; readonly user: string };
+
+/**
+ * The part after `#` never leaves the browser, so the Pushover codes in it
+ * reach only the phones that have the link. Without Pushover it is just the key.
+ */
+export function crewLink(key: string, pushover: Pushover | null = null): string {
+  if (pushover === null) return `${crewPageUrl}#${key}`;
+  // Built by hand: React Native's URLSearchParams is not complete. All three are letters and digits.
+  return `${crewPageUrl}#k=${key}&t=${pushover.token}&u=${pushover.user}`;
+}
+
+/** Reads both link forms: `#key` and `#k=key&t=token&u=user`. */
+export function readCrewLink(hash: string): { key: string; pushover: Pushover | null } {
+  const text = hash.replace(/^#/, '');
+  if (!text.includes('=')) return { key: text, pushover: null };
+  const params = new URLSearchParams(text);
+  const token = params.get('t') ?? '';
+  const user = params.get('u') ?? '';
+  return { key: params.get('k') ?? '', pushover: token !== '' && user !== '' ? { token, user } : null };
+}
+
+/** "Call me" rings until the runner taps it; every other message rings once, even in quiet hours. */
+export const urgentMessages: readonly string[] = ['Call me'];
 
 /** The rules only accept keys at least this long. */
 export const keyLength = 24;
