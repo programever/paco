@@ -1,7 +1,8 @@
 # Build and deploy the crew page. Runs on every push to main:
 # 1. install the tools, 2. run Paco's tests (the page uses the same route code),
-# 3. type-check and build web/dist, 4. push it to the gh-pages branch as one fresh commit.
-# GitHub Pages serves that branch at https://programever.github.io/paco/.
+# 3. type-check and build web/dist, 4. hand web/dist to GitHub Pages.
+# No branch holds the built files: GitHub Pages takes them straight from this run
+# (Settings > Pages > Source: GitHub Actions). Served at https://programever.github.io/paco/.
 name: Crew page
 
 on:
@@ -10,14 +11,16 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 concurrency:
   group: crew-page
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,12 +35,16 @@ jobs:
         working-directory: web
       - run: npm run build
         working-directory: web
-      - uses: peaceiris/actions-gh-pages@v4
+      - uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./web/dist
-          publish_branch: gh-pages
-          force_orphan: true
-          user_name: Mega
-          user_email: tdtrinh.web@gmail.com
-          commit_message: Publish crew page from
+          path: web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

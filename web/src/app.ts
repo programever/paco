@@ -275,19 +275,36 @@ const messageText = (id: string) => state.messages.find((m) => m.id === id)?.tex
 function renderMap(race: Race, live: LiveDoc): void {
   if (map === null) {
     map = L.map('map', { zoomControl: true });
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap',
+    // Topo first: trails and height lines are what a crew needs in the mountains.
+    const topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+      maxZoom: 17,
+      subdomains: 'abc',
+      attribution: '&copy; OpenStreetMap, SRTM | &copy; OpenTopoMap (CC-BY-SA)',
     }).addTo(map);
+    const streets = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      subdomains: 'abcd',
+      attribution: '&copy; OpenStreetMap &copy; CARTO',
+    });
+    L.control.layers({ Topo: topo, Streets: streets }, {}, { position: 'topright' }).addTo(map);
     layers = L.layerGroup().addTo(map);
   }
   layers!.clearLayers();
   const ll = (p: { position: { lat: number; lon: number } }) => L.latLng(p.position.lat, p.position.lon);
   const all = L.polyline(race.route.points.map(ll), { color: '#ff7a2f', weight: 4, opacity: 0.9 }).addTo(layers!);
   L.polyline(slice(race.route, 0, live.km).map(ll), { color: '#5a6b7d', weight: 7, opacity: 0.9 }).addTo(layers!);
+  // Checkpoints at the same place (a loop's start and finish) share one label.
+  const spots: { at: L.LatLng; names: string[] }[] = [];
   for (const c of race.checkpoints) {
-    L.circleMarker(ll(atKm(race.route, c.km)), { radius: 7, color: '#101823', weight: 2, fillColor: '#6ec1ff', fillOpacity: 1 })
-      .bindTooltip(`${esc(c.name || c.role)} · km ${kmValue(c.km)}`, { permanent: true, direction: 'right', className: 'cp-label' })
+    const at = ll(atKm(race.route, c.km));
+    const name = `${c.name || c.role} · km ${kmValue(c.km)}`;
+    const same = spots.find((s) => s.at.distanceTo(at) < 60);
+    if (same) same.names.push(name);
+    else spots.push({ at, names: [name] });
+  }
+  for (const s of spots) {
+    L.circleMarker(s.at, { radius: 7, color: '#101823', weight: 2, fillColor: '#6ec1ff', fillOpacity: 1 })
+      .bindTooltip(s.names.map(esc).join('<br>'), { permanent: true, direction: 'right', className: 'cp-label' })
       .addTo(layers!);
   }
   const runner =

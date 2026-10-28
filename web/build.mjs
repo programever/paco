@@ -7,6 +7,7 @@ rmSync('dist', { recursive: true, force: true });
 mkdirSync('dist');
 for (const f of ['index.html', 'style.css']) cpSync(`src/${f}`, `dist/${f}`);
 cpSync('node_modules/leaflet/dist/leaflet.css', 'dist/leaflet.css');
+cpSync('node_modules/leaflet/dist/images', 'dist/images', { recursive: true });
 cpSync('../races', 'dist/races', { recursive: true, filter: (f) => !f.endsWith('.md') });
 writeFileSync('dist/.nojekyll', '');
 const r = await build({

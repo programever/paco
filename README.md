@@ -140,4 +140,5 @@ npm run serve      # http://127.0.0.1:8766/#KEY
 ```
 
 Every push to `main` runs `.github/workflows/crew-page.yml`: Paco's tests, then the page build, then
-`web/dist` goes to the `gh-pages` branch. GitHub Pages serves that branch.
+GitHub Pages takes `web/dist` straight from that run (Settings, Pages, Source: GitHub Actions). No branch
+holds the built files.

@@ -70,6 +70,7 @@ h2 { font: 700 11px var(--mono); letter-spacing: 1px; color: var(--muted); text-
 .list { list-style: none; padding: 0; margin: 12px 0 0; }
 .list li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
 .list li:first-child { border-top: 0; }
+.list.card { padding: 4px 16px; }
 .when { font: 12px var(--mono); color: var(--muted); white-space: nowrap; }
 .tick { font: 700 12px var(--mono); white-space: nowrap; }
 .tick.seen { color: var(--ok); }
