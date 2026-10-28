@@ -282,7 +282,8 @@ function render(): void {
          ${cell('arrives about', next.eta === null ? '—' : clockOf(next.eta))}
          ${cell('COT', next.checkpoint.cutoff ? clockText(next.checkpoint.cutoff) : 'none')}
          ${cell('margin', next.marginMs === null ? '—' : signedDuration(next.marginMs))}
-       </div>`
+       </div>
+       <a class="mini link" href="${driveTo(race, next.checkpoint.km)}" target="_blank" rel="noopener">Drive there ↗</a>`
     : `<div class="value">Finished</div>`;
 
   renderMap(race, live);
@@ -290,7 +291,7 @@ function render(): void {
   renderMessages(race, live);
 
   $('table').innerHTML =
-    `<tr><th>Checkpoint</th><th>km</th><th>Arrive</th><th>COT</th><th>Margin</th></tr>` +
+    `<tr><th>Checkpoint</th><th>km</th><th>Arrive</th><th>COT</th><th>Margin</th><th></th></tr>` +
     list
       .map(
         (a) => `<tr class="${a.passed ? 'passed' : ''}">
@@ -298,9 +299,17 @@ function render(): void {
           <td>${a.passed ? 'passed' : a.eta === null ? '—' : clockOf(a.eta)}</td>
           <td>${a.checkpoint.cutoff ? clockText(a.checkpoint.cutoff) : '—'}</td>
           <td class="${a.marginMs === null ? '' : a.marginMs < 0 ? 'minus' : a.marginMs < 30 * 60_000 ? 'close' : 'plus'}">${a.marginMs === null ? '—' : signedDuration(a.marginMs)}</td>
+          <td><a class="drive" href="${driveTo(race, a.checkpoint.km)}" target="_blank" rel="noopener">Drive ↗</a></td>
         </tr>`,
       )
       .join('');
+}
+
+// Google Maps through its public links: no key and no card. On a phone they open the Google Maps app.
+const googlePlace = (lat: number, lon: number) => `https://www.google.com/maps/search/?api=1&query=${lat.toFixed(6)},${lon.toFixed(6)}`;
+function driveTo(race: Race, km: number): string {
+  const p = atKm(race.route, km).position;
+  return `https://www.google.com/maps/dir/?api=1&destination=${p.lat.toFixed(6)},${p.lon.toFixed(6)}&travelmode=driving`;
 }
 
 const cell = (label: string, value: string, bad = false) =>
@@ -375,6 +384,7 @@ function renderMap(race: Race, live: LiveDoc): void {
     map.fitBounds(all.getBounds(), { padding: [20, 20] });
     state.fitted = true;
   }
+  $<HTMLAnchorElement>('runner-google').href = googlePlace(runner.lat, runner.lng);
   toRunner = () => map!.setView(runner, Math.max(map!.getZoom(), 15));
   toRoute = () => map!.fitBounds(all.getBounds(), { padding: [20, 20] });
   drawCursor(race);

@@ -129,3 +129,7 @@ tr.passed td { color: var(--muted); }
 .bubble.crew .tick.seen { opacity: 1; font-weight: 800; }
 .pages { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; font: 12px var(--mono); color: var(--muted); }
 .mini:disabled { opacity: 0.35; cursor: default; }
+a.mini.link { display: inline-flex; align-items: center; text-decoration: none; color: var(--paper); }
+#next a.mini.link { margin-top: 12px; }
+.map-foot { flex-wrap: wrap; }
+a.drive { color: var(--cp); font-family: var(--mono); font-size: 12px; white-space: nowrap; text-decoration: none; }
