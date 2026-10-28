@@ -95,13 +95,6 @@ tr.passed td { color: var(--muted); }
 .close { color: var(--warn); }
 .minus { color: var(--bad); }
 
-.banner {
-  position: sticky; top: 61px; z-index: 999; margin-top: 12px;
-  display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 14px;
-  background: var(--bad); color: #fff; font-weight: 800; font-size: 18px;
-}
-.banner > div { flex: 1; }
-.banner .mini { background: #fff; color: var(--bad); border-color: #fff; }
 
 .tabs { display: flex; gap: 6px; margin-top: 14px; }
 .tab {

@@ -13,7 +13,7 @@ import { climbs, Climb } from '../../src/core/climbs';
 import { bearing } from '../../src/core/geo';
 import { atKm, elevationRangeM, slice } from '../../src/core/route';
 import { checkpointLabel, clockText, Race, raceFromPlanFile } from '../../src/core/race';
-import { arrivals, delivered, isStale, latestStatus, seenIds, statusTone } from '../../src/crew/follow';
+import { arrivals, delivered, isStale, seenIds, statusTone } from '../../src/crew/follow';
 import {
   firebaseConfig, keyLength, Live, readCrewLink, maxMessageLength, quickMessages, Tap, TapKind, tapKinds, tapLabel, urgentKinds, waitingAt,
 } from '../../src/crew/protocol';
@@ -41,8 +41,6 @@ const state = {
   messages: [] as Message[],
   /** Taps already known when the page opened do not ring. */
   knownTaps: null as Set<string> | null,
-  banner: null as { text: string; key: string } | null,
-  dismissed: new Set<string>(),
   /** 0 is the newest page. */
   historyPage: 0,
   lastRing: 0,
@@ -206,23 +204,6 @@ function ringForNewTaps(): void {
   if (document.hidden) document.title = '🔴 News from the runner';
 }
 
-/** The banner: the most serious thing the crew has not dismissed yet. */
-function pickBanner(now: number): { text: string; key: string } | null {
-  const live = state.live;
-  if (live === null) return null;
-  const status = latestStatus(state.taps);
-  if (status !== undefined && urgentKinds.includes(status.kind)) {
-    const text = status.kind === 'sos' ? 'SOS from the runner' : `${tapLabel[status.kind]}${status.items.length ? ': ' + status.items.join(', ') : ''}`;
-    const banner = { text, key: status.id };
-    if (!state.dismissed.has(banner.key)) return banner;
-  }
-  if (live.state === 'running' && live.at !== null && isStale(live.at, now)) {
-    const banner = { text: `No update for ${longDuration(now - live.at)}`, key: `stale-${live.at}` };
-    if (!state.dismissed.has(banner.key)) return banner;
-  }
-  return null;
-}
-
 // ---------- rendering ----------
 
 function $<T extends HTMLElement = HTMLElement>(id: string): T {
@@ -244,11 +225,8 @@ function render(): void {
   const now = Date.now();
   const { live, race } = state;
 
-  const banner = pickBanner(now);
-  if (banner?.key.startsWith('stale') && now - state.lastRing >= ringAgainMs) ring();
-  state.banner = banner;
-  $('banner').hidden = banner === null;
-  $('banner-text').textContent = banner?.text ?? '';
+  // No banner to dismiss (Iker): the status card shows it, and the page rings while the news is old.
+  if (live !== null && live.state === 'running' && live.at !== null && isStale(live.at, now) && now - state.lastRing >= ringAgainMs) ring();
 
   if (live === null || race === null) return;
   $('note').hidden = true;
@@ -257,15 +235,12 @@ function render(): void {
   $('race-facts').textContent = `${kmValue(race.route.totalKm)} km · ↑${Math.round(race.route.totalAscentM)} m · started ${clockOf(live.start)}`;
 
   const at = live.fix ?? live.at ?? now;
-  const status = latestStatus(state.taps);
-  const tone = live.state === 'ended' ? 'ok' : status ? statusTone[status.kind] : 'ok';
+  // Race numbers only. The runner's taps (Injured, Need, ...) are read in the Message tab (Iker).
   const left = Math.max(0, race.route.totalKm - live.km);
   const age = live.at === null ? null : now - live.at;
-  $('status').className = `card status ${tone}`;
+  $('status').className = 'card status ok';
   $('status').innerHTML = `
-    <div class="big">${live.state === 'ended' ? 'RACE ENDED' : esc(status ? tapLabel[status.kind].toUpperCase() : 'RUNNING')}</div>
-    ${status && status.items.length ? `<div class="items">${esc(status.items.join(' · '))}</div>` : ''}
-    ${status ? `<div class="label">tapped ${clockOf(status.t)}</div>` : ''}
+    <div class="big">${live.state === 'ended' ? 'RACE ENDED' : 'RUNNING'}</div>
     <div class="grid">
       ${cell('km', `${kmValue(live.km)} / ${kmValue(race.route.totalKm)}`)}
       ${cell('km left', kmValue(left))}
@@ -509,10 +484,6 @@ $('free').addEventListener('submit', (e) => {
   e.preventDefault();
   send($<HTMLInputElement>('text').value);
   $<HTMLInputElement>('text').value = '';
-});
-$('banner-ok').addEventListener('click', () => {
-  if (state.banner) state.dismissed.add(state.banner.key);
-  render();
 });
 document.querySelectorAll<HTMLButtonElement>('.tab').forEach((tab) =>
   tab.addEventListener('click', () => {
