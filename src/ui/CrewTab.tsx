@@ -6,6 +6,9 @@ import { crewLink, injuries, needs, Tap, TapKind, tapLabel } from '../crew/proto
 import { Run } from '../core/run';
 import { clockOf, colors, longDuration, mono } from './theme';
 
+/** Messages per page, newest page first. */
+const pageSize = 5;
+
 /** While this tab is on screen the screen is lit anyway, so messages are fetched this often. */
 const inboxEveryMs = 30_000;
 
@@ -17,6 +20,7 @@ export function CrewTab({ run, now }: { run: Run | null; now: number }) {
   const [chosen, setChosen] = useState<string[]>([]);
 
   const [checking, setChecking] = useState(false);
+  const [page, setPage] = useState(0);
   const reload = () => setCrew(readCrew());
   const check = () => {
     setChecking(true);
@@ -113,7 +117,7 @@ export function CrewTab({ run, now }: { run: Run | null; now: number }) {
       ) : (
         // Its own scroll box: a long chat must not push the crew link off the page.
         <ScrollView style={styles.inbox} nestedScrollEnabled>
-          {crew.inbox.map((message) => (
+          {crew.inbox.slice(page * pageSize, (page + 1) * pageSize).map((message) => (
           <View key={message.id} style={styles.message}>
             <View style={styles.messageBody}>
               <Text style={styles.messageText}>{message.text}</Text>
@@ -129,6 +133,15 @@ export function CrewTab({ run, now }: { run: Run | null; now: number }) {
           </View>
           ))}
         </ScrollView>
+      )}
+      {crew.inbox.length > pageSize && (
+        <View style={styles.pages}>
+          <PageButton label="‹ Newer" off={page === 0} onPress={() => setPage(page - 1)} />
+          <Text style={styles.muted}>
+            {page + 1} / {Math.ceil(crew.inbox.length / pageSize)}
+          </Text>
+          <PageButton label="Older ›" off={(page + 1) * pageSize >= crew.inbox.length} onPress={() => setPage(page + 1)} />
+        </View>
       )}
 
       <Text style={styles.section}>CREW LINK</Text>
@@ -150,6 +163,14 @@ function linkState(crew: Crew, now: number): string {
 }
 
 const describe = (tap: Tap): string => [tapLabel[tap.kind], ...tap.items].join(' · ');
+
+function PageButton({ label, off, onPress }: { label: string; off: boolean; onPress: () => void }) {
+  return (
+    <Pressable style={({ pressed }) => [styles.pageButton, off && styles.sendOff, pressed && styles.pressed]} disabled={off} onPress={onPress}>
+      <Text style={styles.checkText}>{label}</Text>
+    </Pressable>
+  );
+}
 
 function StatusButton({ label, colour, on, onPress }: { label: string; colour: string; on?: boolean; onPress: () => void }) {
   return (
@@ -187,6 +208,8 @@ const styles = StyleSheet.create({
   section: { fontFamily: mono, fontSize: 11, fontWeight: '700', letterSpacing: 1, color: colors.muted, marginTop: 22, marginBottom: 8 },
   muted: { fontSize: 12.5, color: colors.muted },
   inbox: { maxHeight: 320 },
+  pages: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 },
+  pageButton: { minHeight: 40, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderColor: colors.tape, justifyContent: 'center' },
   message: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, marginBottom: 8, borderRadius: 12, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.ink2 },
   messageBody: { flex: 1, gap: 3 },
   messageText: { fontSize: 16, fontWeight: '600', color: colors.paper },

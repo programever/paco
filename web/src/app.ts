@@ -9,16 +9,22 @@ import {
 } from 'firebase/firestore';
 import L from 'leaflet';
 
-import { atKm, slice } from '../../src/core/route';
-import { clockText, Race, raceFromPlanFile } from '../../src/core/race';
+import { climbs, Climb } from '../../src/core/climbs';
+import { bearing } from '../../src/core/geo';
+import { atKm, elevationRangeM, slice } from '../../src/core/route';
+import { checkpointLabel, clockText, Race, raceFromPlanFile } from '../../src/core/race';
 import { arrivals, delivered, isStale, latestStatus, seenIds, statusTone } from '../../src/crew/follow';
 import {
   firebaseConfig, keyLength, Live, readCrewLink, maxMessageLength, quickMessages, Tap, TapKind, tapKinds, tapLabel, urgentKinds, waitingAt,
 } from '../../src/crew/protocol';
-import { clockOf, kmValue, longDuration, signedDuration } from '../../src/ui/theme';
+import { legendColour, readout, ticksOf } from '../../src/ui/legend';
+import { clockOf, colors, kmValue, longDuration, signedDuration } from '../../src/ui/theme';
 
 type LiveDoc = Live & { at: number | null };
 type Message = { id: string; text: string; at: number | null };
+
+/** History entries per page. */
+const historyPageSize = 10;
 
 /** While stale, the page rings again this often. */
 const ringAgainMs = 5 * 60_000;
@@ -28,12 +34,17 @@ const state = {
   pushover: readCrewLink(location.hash).pushover,
   live: null as LiveDoc | null,
   race: null as Race | null,
+  climbs: [] as readonly Climb[],
+  /** The finger on the profile, mirrored on the map, as in Paco. */
+  cursorKm: null as number | null,
   taps: [] as Tap[],
   messages: [] as Message[],
   /** Taps already known when the page opened do not ring. */
   knownTaps: null as Set<string> | null,
   banner: null as { text: string; key: string } | null,
   dismissed: new Set<string>(),
+  /** 0 is the newest page. */
+  historyPage: 0,
   lastRing: 0,
   fitted: false,
 };
@@ -117,6 +128,8 @@ async function loadRace(id: string): Promise<void> {
     const response = await fetch(`races/${encodeURIComponent(id)}.json`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     state.race = raceFromPlanFile(id, await response.json());
+    state.climbs = climbs(state.race.route);
+    state.cursorKm = null;
   } catch (e) {
     note(`Cannot load the race "${id}": ${(e as Error).message}`);
   }
@@ -293,69 +306,150 @@ function render(): void {
 const cell = (label: string, value: string, bad = false) =>
   `<div><div class="label">${label}</div><div class="value ${bad ? 'stale' : ''}">${esc(value)}</div></div>`;
 
+/** How far past the runner the direction arrows reach, and how far apart they are, as in Paco. */
+const arrowsAheadKm = 1;
+const arrowEveryKm = 0.08;
+
+let cursorLayer: L.LayerGroup | null = null;
+
 function renderMap(race: Race, live: LiveDoc): void {
   if (map === null) {
     map = L.map('map', { zoomControl: true });
-    // Topo first: trails and height lines are what a crew needs in the mountains.
+    // "Route" is Paco's own map: the course drawn on a plain ground, no tiles,
+    // so it also works on one bar of signal. Topo and Streets add the real world.
+    const plain = L.layerGroup().addTo(map);
     const topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
       maxZoom: 17,
       subdomains: 'abc',
       attribution: '&copy; OpenStreetMap, SRTM | &copy; OpenTopoMap (CC-BY-SA)',
-    }).addTo(map);
+    });
     const streets = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
       maxZoom: 19,
       subdomains: 'abcd',
       attribution: '&copy; OpenStreetMap &copy; CARTO',
     });
-    L.control.layers({ Topo: topo, Streets: streets }, {}, { position: 'topright' }).addTo(map);
+    L.control.layers({ Route: plain, Topo: topo, Streets: streets }, {}, { position: 'topright' }).addTo(map);
     layers = L.layerGroup().addTo(map);
+    cursorLayer = L.layerGroup().addTo(map);
   }
   layers!.clearLayers();
   const ll = (p: { position: { lat: number; lon: number } }) => L.latLng(p.position.lat, p.position.lon);
-  const all = L.polyline(race.route.points.map(ll), { color: '#ff7a2f', weight: 4, opacity: 0.9 }).addTo(layers!);
-  L.polyline(slice(race.route, 0, live.km).map(ll), { color: '#5a6b7d', weight: 7, opacity: 0.9 }).addTo(layers!);
-  // Checkpoints at the same place (a loop's start and finish) share one label.
-  const spots: { at: L.LatLng; names: string[] }[] = [];
+  const { route } = race;
+  // Behind the runner first, then ahead on top, as in Paco: where the course uses
+  // the same ground twice, the part still to run wins.
+  const all = L.polyline(route.points.map(ll), { opacity: 0, weight: 1 }).addTo(layers!);
+  L.polyline(slice(route, 0, live.km).map(ll), { color: colors.passed, weight: 7, opacity: 1 }).addTo(layers!);
+  L.polyline(slice(route, live.km, route.totalKm).map(ll), { color: colors.route, weight: 3.5, opacity: 1 }).addTo(layers!);
+  for (let k = live.km + arrowEveryKm / 2; k < Math.min(route.totalKm, live.km + arrowsAheadKm); k += arrowEveryKm) {
+    const from = atKm(route, k).position;
+    const to = atKm(route, Math.min(route.totalKm, k + 0.01)).position;
+    const turn = bearing(from, to) - 90;
+    L.marker(L.latLng(from.lat, from.lon), {
+      interactive: false,
+      icon: L.divIcon({
+        className: 'arrow',
+        iconSize: [14, 14],
+        html: `<svg viewBox="-7 -7 14 14" style="transform: rotate(${turn}deg)"><path d="M-3.5 -3.5 L1.5 0 L-3.5 3.5" fill="none" stroke="${colors.paper}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+      }),
+    }).addTo(layers!);
+  }
+  // Checkpoints in Paco's legend colours. Two at the same place (a loop's start and finish) share one label.
+  const spots: { at: L.LatLng; colour: string; names: string[] }[] = [];
   for (const c of race.checkpoints) {
-    const at = ll(atKm(race.route, c.km));
-    const name = `${c.name || c.role} · km ${kmValue(c.km)}`;
+    const at = ll(atKm(route, c.km));
+    const colour = legendColour(race.checkpoints, c);
+    const name = `<span style="color:${colour}">${esc(checkpointLabel(c))} · km ${kmValue(c.km)}</span>`;
     const same = spots.find((s) => s.at.distanceTo(at) < 60);
     if (same) same.names.push(name);
-    else spots.push({ at, names: [name] });
+    else spots.push({ at, colour, names: [name] });
   }
   for (const s of spots) {
-    L.circleMarker(s.at, { radius: 7, color: '#101823', weight: 2, fillColor: '#6ec1ff', fillOpacity: 1 })
-      .bindTooltip(s.names.map(esc).join('<br>'), { permanent: true, direction: 'right', className: 'cp-label' })
+    L.circleMarker(s.at, { radius: 7, color: colors.ink, weight: 2, fillColor: s.colour, fillOpacity: 1 })
+      .bindTooltip(s.names.join('<br>'), { permanent: true, direction: 'right', className: 'cp-label' })
       .addTo(layers!);
   }
-  const runner =
-    live.lat !== undefined && live.lon !== undefined ? L.latLng(live.lat, live.lon) : ll(atKm(race.route, live.km));
-  if (live.acc !== undefined && live.acc < 1000) L.circle(runner, { radius: live.acc, color: '#35d0a5', weight: 1, fillOpacity: 0.1 }).addTo(layers!);
-  L.circleMarker(runner, { radius: 10, color: '#fff', weight: 3, fillColor: '#35d0a5', fillOpacity: 1 }).addTo(layers!);
+  const runner = live.lat !== undefined && live.lon !== undefined ? L.latLng(live.lat, live.lon) : ll(atKm(route, live.km));
+  if (live.acc !== undefined && live.acc < 1000) L.circle(runner, { radius: live.acc, color: colors.you, weight: 1, fillOpacity: 0.1 }).addTo(layers!);
+  L.circleMarker(runner, { radius: 9, color: colors.ink, weight: 3, fillColor: colors.you, fillOpacity: 1 }).addTo(layers!);
   if (!state.fitted) {
     map.fitBounds(all.getBounds(), { padding: [20, 20] });
     state.fitted = true;
   }
   toRunner = () => map!.setView(runner, Math.max(map!.getZoom(), 15));
   toRoute = () => map!.fitBounds(all.getBounds(), { padding: [20, 20] });
+  drawCursor(race);
 }
 let toRunner = () => {};
 let toRoute = () => {};
 
+/** Only the cursor, so dragging along the profile does not redraw the whole map. */
+function drawCursor(race: Race): void {
+  cursorLayer?.clearLayers();
+  const km = state.cursorKm;
+  if (cursorLayer !== null && km !== null) {
+    const p = atKm(race.route, km).position;
+    L.circleMarker(L.latLng(p.lat, p.lon), { radius: 7, color: colors.ink, weight: 2, fillColor: colors.scrub, fillOpacity: 1 })
+      .bindTooltip(`km ${kmValue(km)}`, { permanent: true, direction: 'top', className: 'cursor-label' })
+      .addTo(cursorLayer);
+  }
+  $('readout').hidden = km === null;
+  $('readout').textContent = km === null ? '' : readout(race.route, km);
+  const marker = $('profile').querySelector<SVGGElement>('#cursor');
+  if (marker !== null) marker.innerHTML = km === null ? '' : profileMarker(race, km, colors.scrub, 5);
+}
+
+/** Paco's profile, same size: the chart is 320 x 96 and stretches to the card. */
+const chartW = 320;
+const chartH = 96;
+const chartPad = 6;
+
+function profileScales(race: Race) {
+  const { low, high } = elevationRangeM(race.route);
+  const total = Math.max(0.001, race.route.totalKm);
+  return {
+    x: (k: number) => (k / total) * chartW,
+    y: (m: number) => chartH - chartPad - ((m - low) / (high - low)) * (chartH - chartPad * 2),
+  };
+}
+
+function profileMarker(race: Race, km: number, colour: string, radius: number): string {
+  const { x, y } = profileScales(race);
+  const at = x(km);
+  return `<line x1="${at}" x2="${at}" y1="0" y2="${chartH}" stroke="${colour}" stroke-width="1.3"/>
+    <circle cx="${at}" cy="${y(atKm(race.route, km).elevationM)}" r="${radius}" fill="${colour}" stroke="${colors.ink}" stroke-width="1.5"/>`;
+}
+
 function renderProfile(race: Race, km: number): void {
-  const points = race.route.points;
-  const low = Math.min(...points.map((p) => p.elevationM));
-  const high = Math.max(...points.map((p) => p.elevationM), low + 1);
-  const x = (k: number) => (k / race.route.totalKm) * 1000;
-  const y = (e: number) => 170 - ((e - low) / (high - low)) * 150;
-  const step = Math.max(1, Math.floor(points.length / 500));
-  const line = points.filter((_, i) => i % step === 0).map((p) => `${x(p.km).toFixed(1)},${y(p.elevationM).toFixed(1)}`);
-  const ticks = race.checkpoints.map((c) => `<line x1="${x(c.km)}" x2="${x(c.km)}" y1="0" y2="180" stroke="#6ec1ff" stroke-width="2" opacity=".5"/>`);
+  const { route } = race;
+  const { x, y } = profileScales(race);
+  const samples = 160;
+  const outline = Array.from({ length: samples + 1 }, (_, step) => atKm(route, (route.totalKm * step) / samples))
+    .map((p, i) => `${i === 0 ? 'M' : 'L'}${x(p.km).toFixed(1)} ${y(p.elevationM).toFixed(1)}`)
+    .join(' ');
+  const ticks = ticksOf(race.checkpoints);
+  $('profile').setAttribute('viewBox', `0 0 ${chartW} ${chartH}`);
   $('profile').innerHTML = `
-    <polygon points="0,180 ${line.join(' ')} 1000,180" fill="rgba(255,122,47,.18)"/>
-    <polyline points="${line.join(' ')}" fill="none" stroke="#ff7a2f" stroke-width="3" vector-effect="non-scaling-stroke"/>
-    ${ticks.join('')}
-    <line x1="${x(km)}" x2="${x(km)}" y1="0" y2="180" stroke="#35d0a5" stroke-width="4"/>`;
+    ${state.climbs.map((c) => `<rect x="${x(c.startKm)}" y="0" width="${x(c.endKm) - x(c.startKm)}" height="${chartH}" fill="rgba(255,122,47,.12)"/>`).join('')}
+    <path d="${outline} L${chartW} ${chartH} L0 ${chartH} Z" fill="rgba(255,122,47,.16)"/>
+    <path d="${outline}" fill="none" stroke="${colors.route}" stroke-width="1.6"/>
+    ${ticks.map(({ colour, checkpoint }) => `<line x1="${x(checkpoint.km)}" x2="${x(checkpoint.km)}" y1="0" y2="${chartH}" stroke="${colour}" stroke-width="1" stroke-dasharray="3 3" opacity=".6"/>`).join('')}
+    ${ticks.map(({ colour, checkpoint }) => `<circle cx="${x(checkpoint.km)}" cy="${chartH - 3}" r="3" fill="${colour}"/>`).join('')}
+    ${profileMarker(race, km, colors.paper, 4.5)}
+    <g id="cursor"></g>`;
+  $('profile-legend').innerHTML = `<span>Start</span><span>Runner at km ${kmValue(km)}</span><span>Finish km ${kmValue(route.totalKm)}</span>`;
+  $('profile-captions').innerHTML = ticks
+    .map(({ colour, checkpoint }) => `<span><i style="background:${colour}"></i>${esc(checkpointLabel(checkpoint))} · km ${kmValue(checkpoint.km)}</span>`)
+    .join('');
+  drawCursor(race);
+}
+
+/** Dragging a finger along the profile moves a cursor there and on the map, as in Paco. */
+function scrub(e: PointerEvent): void {
+  const race = state.race;
+  if (race === null) return;
+  const box = $('profile').getBoundingClientRect();
+  state.cursorKm = Math.min(1, Math.max(0, (e.clientX - box.left) / Math.max(1, box.width))) * race.route.totalKm;
+  drawCursor(race);
 }
 
 function renderMessages(race: Race, live: LiveDoc): void {
@@ -369,7 +463,7 @@ function renderMessages(race: Race, live: LiveDoc): void {
   const waiting = state.messages.filter((m) => !seen.has(m.id)).length;
   $('unseen').hidden = waiting === 0;
   $('unseen').textContent = String(waiting);
-  // One chat: the runner's taps on the left, the crew's messages on the right, newest at the bottom.
+  // One chat: the runner's taps on the left, the crew's messages on the right, newest on top.
   // "Got it" is not a bubble of its own: it is the tick on the message it answers.
   const bubbles = [
     ...state.taps
@@ -382,11 +476,15 @@ function renderMessages(race: Race, live: LiveDoc): void {
       const tick = seen.has(m.id) ? '<span class="tick seen">✓✓ seen</span>' : m.at !== null && delivered(m.at, live.got) ? '<span class="tick">✓✓ on phone</span>' : m.at === null ? '<span class="tick">sending</span>' : '<span class="tick">✓ sent</span>';
       return { at: m.at ?? Date.now(), html: `<li class="bubble crew"><div>${esc(m.text)}</div><span class="when">${m.at ? clockOf(m.at) : ''}</span> ${tick}</li>` };
     }),
-  ].sort((a, b) => a.at - b.at);
-  const box = $('history');
-  const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
-  box.innerHTML = bubbles.map((b) => b.html).join('') || '<li class="empty">Nothing yet</li>';
-  if (atBottom) box.scrollTop = box.scrollHeight;
+  ].sort((a, b) => b.at - a.at);
+  const pages = Math.max(1, Math.ceil(bubbles.length / historyPageSize));
+  state.historyPage = Math.min(state.historyPage, pages - 1);
+  const shown = bubbles.slice(state.historyPage * historyPageSize, (state.historyPage + 1) * historyPageSize);
+  $('history').innerHTML = shown.map((b) => b.html).join('') || '<li class="empty">Nothing yet</li>';
+  $('history-pages').hidden = pages === 1;
+  $('history-page').textContent = `${state.historyPage + 1} / ${pages}`;
+  $<HTMLButtonElement>('newer').disabled = state.historyPage === 0;
+  $<HTMLButtonElement>('older').disabled = state.historyPage >= pages - 1;
 }
 
 // ---------- wiring ----------
@@ -415,26 +513,34 @@ document.querySelectorAll<HTMLButtonElement>('.tab').forEach((tab) =>
     if (name === 'status') map?.invalidateSize();
   }),
 );
+$('newer').addEventListener('click', () => {
+  state.historyPage = Math.max(0, state.historyPage - 1);
+  render();
+});
+$('older').addEventListener('click', () => {
+  state.historyPage += 1;
+  render();
+});
 $('to-runner').addEventListener('click', () => toRunner());
 $('to-route').addEventListener('click', () => toRoute());
-// Browsers only play sound after a tap on the page, so the page opens behind a big "tap" button.
-function soundOn(): void {
-  audio = new AudioContext();
-  $('sound').textContent = 'Sound on';
-  $('sound').classList.add('on');
-  $('start').hidden = true;
-  ring(false);
-}
-$('start').addEventListener('click', soundOn);
-$('sound').addEventListener('click', () => {
-  if (audio === null) soundOn();
-  else {
-    void audio.close();
-    audio = null;
-    $('sound').textContent = 'Sound off';
-    $('sound').classList.remove('on');
-  }
+$('profile').addEventListener('pointerdown', (e) => {
+  $('profile').setPointerCapture(e.pointerId);
+  scrub(e);
 });
+$('profile').addEventListener('pointermove', (e) => {
+  if ($('profile').hasPointerCapture(e.pointerId)) scrub(e);
+});
+
+// Sound is always on. A browser keeps a page silent until the first touch on it,
+// whatever the page does; the first touch anywhere wakes the sound, and the
+// muted mark in the corner shows until then.
+audio = new AudioContext();
+const showMute = () => ($('mute').hidden = audio?.state === 'running');
+audio.addEventListener('statechange', showMute);
+showMute();
+for (const event of ['pointerdown', 'keydown', 'touchend'] as const) {
+  document.addEventListener(event, () => void audio?.resume(), { capture: true, passive: true });
+}
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) return;
   document.title = 'Paco Crew';

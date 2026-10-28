@@ -13,10 +13,8 @@
   <body>
     <header class="bar">
       <div class="mark">PA<span>CO</span> CREW</div>
-      <button id="sound" class="mini">Sound off</button>
+      <span id="mute" class="mute" hidden>🔇</span>
     </header>
-
-    <button id="start" class="start">Tap to turn on sound</button>
 
     <main>
       <div id="banner" class="banner" hidden>
@@ -46,7 +44,12 @@
               <button id="to-route" class="mini">Full route</button>
             </div>
           </div>
-          <div class="card"><svg id="profile" viewBox="0 0 1000 180" preserveAspectRatio="none"></svg></div>
+          <div class="card profile-card">
+            <svg id="profile" viewBox="0 0 320 96"></svg>
+            <div id="profile-legend" class="profile-legend"></div>
+            <div id="profile-captions" class="profile-captions"></div>
+            <p id="readout" class="readout" hidden></p>
+          </div>
         </div>
 
         <div class="pane" data-pane="message" hidden>
@@ -62,7 +65,12 @@
             </form>
           </div>
           <h2>History</h2>
-          <ul id="history" class="chat card scroll"></ul>
+          <ul id="history" class="chat card"></ul>
+          <div id="history-pages" class="pages" hidden>
+            <button id="newer" class="mini">‹ Newer</button>
+            <span id="history-page"></span>
+            <button id="older" class="mini">Older ›</button>
+          </div>
         </div>
 
         <div class="pane" data-pane="checkpoints" hidden>

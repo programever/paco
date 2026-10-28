@@ -4,7 +4,7 @@ import Svg, { Circle, G, Line, Path, Text as SvgText } from 'react-native-svg';
 
 import { LatLon, Plane, project } from '../core/geo';
 import { checkpointLabel, Race } from '../core/race';
-import { legendColour } from './Profile';
+import { legendColour } from './legend';
 import { atKm, Point, Route, slice } from '../core/route';
 import { colors, kmValue, mono } from './theme';
 
