@@ -134,15 +134,17 @@ function send(text: string): void {
 
 let audio: AudioContext | null = null;
 
-function ring(): void {
+/** Three high beeps for urgent news, two lower ones for the rest. */
+function ring(urgent = true): void {
   state.lastRing = Date.now();
-  navigator.vibrate?.([300, 150, 300, 150, 300]);
+  navigator.vibrate?.(urgent ? [300, 150, 300, 150, 300] : [200, 120, 200]);
   if (audio === null) return;
+  void audio.resume();
   const now = audio.currentTime;
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < (urgent ? 3 : 2); i++) {
     const osc = audio.createOscillator();
     const gain = audio.createGain();
-    osc.frequency.value = 880;
+    osc.frequency.value = urgent ? 880 : 660;
     gain.gain.setValueAtTime(0.0001, now + i * 0.45);
     gain.gain.exponentialRampToValueAtTime(0.6, now + i * 0.45 + 0.03);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.45 + 0.35);
@@ -152,6 +154,7 @@ function ring(): void {
   }
 }
 
+/** Every new tap from the runner rings, "Got it" included: the crew may not be looking. */
 function ringForNewTaps(): void {
   if (state.knownTaps === null) {
     state.knownTaps = new Set(state.taps.map((t) => t.id));
@@ -159,7 +162,9 @@ function ringForNewTaps(): void {
   }
   const fresh = state.taps.filter((t) => !state.knownTaps!.has(t.id));
   for (const t of fresh) state.knownTaps.add(t.id);
-  if (fresh.some((t) => urgentKinds.includes(t.kind))) ring();
+  if (fresh.length === 0) return;
+  ring(fresh.some((t) => urgentKinds.includes(t.kind)));
+  if (document.hidden) document.title = '🔴 News from the runner';
 }
 
 /** The banner: the most serious thing the crew has not dismissed yet. */
@@ -385,19 +390,28 @@ document.querySelectorAll<HTMLButtonElement>('.tab').forEach((tab) =>
 );
 $('to-runner').addEventListener('click', () => toRunner());
 $('to-route').addEventListener('click', () => toRoute());
-// Browsers only play sound after a tap on the page.
+// Browsers only play sound after a tap on the page, so the page opens behind a big "tap" button.
+function soundOn(): void {
+  audio = new AudioContext();
+  $('sound').textContent = 'Sound on';
+  $('sound').classList.add('on');
+  $('start').hidden = true;
+  ring(false);
+}
+$('start').addEventListener('click', soundOn);
 $('sound').addEventListener('click', () => {
-  if (audio === null) {
-    audio = new AudioContext();
-    $('sound').textContent = 'Sound on';
-    $('sound').classList.add('on');
-    ring();
-  } else {
+  if (audio === null) soundOn();
+  else {
     void audio.close();
     audio = null;
     $('sound').textContent = 'Sound off';
     $('sound').classList.remove('on');
   }
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  document.title = 'Paco Crew';
+  void audio?.resume();
 });
 window.addEventListener('hashchange', () => location.reload());
 

@@ -103,3 +103,8 @@ tr.passed td { color: var(--muted); }
 .badge { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--bad); color: #fff; font-size: 11px; line-height: 18px; }
 /* Long lists scroll inside their box, so the page stays short. */
 .scroll { max-height: 50vh; overflow-y: auto; overscroll-behavior: contain; }
+
+.start {
+  position: fixed; inset: 0; z-index: 2000; border: 0; width: 100%;
+  background: rgba(16, 24, 35, 0.94); color: var(--paper); font: 800 24px var(--mono); cursor: pointer;
+}
