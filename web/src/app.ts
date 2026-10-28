@@ -383,7 +383,7 @@ function renderMessages(race: Race, live: LiveDoc): void {
       return { at: m.at ?? Date.now(), html: `<li class="bubble crew"><div>${esc(m.text)}</div><span class="when">${m.at ? clockOf(m.at) : ''}</span> ${tick}</li>` };
     }),
   ].sort((a, b) => a.at - b.at);
-  const box = $('timeline');
+  const box = $('history');
   const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
   box.innerHTML = bubbles.map((b) => b.html).join('') || '<li class="empty">Nothing yet</li>';
   if (atBottom) box.scrollTop = box.scrollHeight;
