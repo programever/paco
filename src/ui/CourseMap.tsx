@@ -3,8 +3,8 @@ import { PanResponder, View } from 'react-native';
 import Svg, { Circle, G, Line, Path, Text as SvgText } from 'react-native-svg';
 
 import { LatLon, Plane, project } from '../core/geo';
-import { checkpointLabel, Race } from '../core/race';
-import { legendColour } from './legend';
+import { Race } from '../core/race';
+import { legendColour, loopsHome, markOf } from './legend';
 import { atKm, Point, Route, slice } from '../core/route';
 import { colors, kmValue, mono } from './theme';
 
@@ -15,9 +15,6 @@ const padding = 16;
 
 /** Screen distance between direction arrows: zooming in shows more arrows, not wider gaps. */
 const arrowSpacing = 44;
-
-/** Names are drawn only when zoomed in enough to have room. */
-const labelScale = 60;
 
 /** Where the map looks: a centre in the course projection and SVG units per km. */
 export type MapView = { readonly centre: Plane; readonly scale: number };
@@ -86,18 +83,16 @@ export function CourseMap(props: Props) {
             transform={`translate(${a.x} ${a.y}) rotate(${a.angle})`}
           />
         ))}
-        {race.checkpoints.map((c) => {
+        {race.checkpoints.filter((c) => !(c.role === 'start' && loopsHome(race))).map((c) => {
           const s = toScreen(atKm(route, c.km).plane);
           const colour = legendColour(race.checkpoints, c);
           const passed = c.km <= reachedKm && c.role !== 'start';
           return (
-            <G key={c.id}>
-              <Circle cx={s.x} cy={s.y} r={5.5} fill={colour} stroke={colors.ink} strokeWidth={1.5} opacity={passed ? 0.45 : 1} />
-              {view.scale > labelScale && (
-                <SvgText x={s.x + 9} y={s.y + 4} fill={colour} fontSize={9} fontFamily={mono}>
-                  {checkpointLabel(c)}
-                </SvgText>
-              )}
+            <G key={c.id} opacity={passed ? 0.45 : 1}>
+              <Circle cx={s.x} cy={s.y} r={c.role === 'finish' && loopsHome(race) ? 8.5 : 7} fill={colour} stroke={colors.ink} strokeWidth={1.5} />
+              <SvgText x={s.x} y={s.y + 3} fill={colors.ink} fontSize={8.5} fontWeight="700" textAnchor="middle" fontFamily={mono}>
+                {markOf(race, c)}
+              </SvgText>
             </G>
           );
         })}

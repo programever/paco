@@ -5,7 +5,7 @@ import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
 import { Climb } from '../core/climbs';
 import { checkpointLabel, Race } from '../core/race';
 import { atKm, elevationRangeM, Route } from '../core/route';
-import { readout, ticksOf } from './legend';
+import { markOf, readout, ticksOf } from './legend';
 import { colors, kmValue, mono } from './theme';
 
 const width = 320;
@@ -79,7 +79,9 @@ export function Profile({ race, climbs, reachedKm, cursorKm, onCursor, onDraggin
       <View style={styles.captions}>
         {ticks.map(({ colour, checkpoint }) => (
           <View key={checkpoint.id} style={styles.caption}>
-            <View style={[styles.dot, { backgroundColor: colour }]} />
+            <View style={[styles.dot, { backgroundColor: colour }]}>
+              <Text style={styles.dotMark}>{markOf(race, checkpoint)}</Text>
+            </View>
             <Text style={styles.small}>
               {checkpointLabel(checkpoint)} · km {kmValue(checkpoint.km)}
             </Text>
@@ -137,7 +139,8 @@ const styles = StyleSheet.create({
   legend: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
   captions: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 4, marginTop: 6 },
   caption: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
+  dot: { minWidth: 15, height: 15, paddingHorizontal: 2, borderRadius: 7.5, alignItems: 'center', justifyContent: 'center' },
+  dotMark: { fontFamily: mono, fontSize: 9, fontWeight: '800', color: colors.ink },
   small: { fontFamily: mono, fontSize: 10.5, color: colors.muted },
   readout: { fontFamily: mono, fontSize: 11.5, color: colors.warn, marginTop: 6, lineHeight: 16 },
 });

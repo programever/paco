@@ -39,6 +39,24 @@ function NextCard({ race, reachedKm, startedAt, now }: Props) {
       </View>
     );
   }
+  if (!hasCutoffs(race)) {
+    return (
+      <View style={styles.card}>
+        <View style={styles.top}>
+          <Text style={styles.eyebrow}>Next checkpoint</Text>
+          <Text style={styles.name}>{checkpointLabel(next)}</Text>
+          <Text style={styles.dist}>
+            at km {kmValue(next.km)} · you are at km {kmValue(reachedKm)}
+          </Text>
+        </View>
+        <View style={styles.quad}>
+          <Cell label="Left" value={kmValue(next.km - reachedKm)} unit="km" big style={[styles.cellWide, styles.cellBottom]} />
+          <Cell label="Up" value={String(Math.round(ascentBetweenM(race.route, reachedKm, next.km)))} unit="m" style={styles.cellRight} />
+          <Cell label="Down" value={String(Math.round(descentBetweenM(race.route, reachedKm, next.km)))} unit="m" />
+        </View>
+      </View>
+    );
+  }
   const binding = nextWithCutoff(race, reachedKm);
   const closesAt = binding === undefined || startedAt === null ? null : cutoffMoment(race, startedAt, binding);
   const borrowed = binding !== undefined && binding.id !== next.id ? binding : null;
@@ -98,13 +116,16 @@ function Verdict({
   );
 }
 
-function Cell({ label, value, unit, style }: { label: string; value: string; unit: string; style?: object }) {
+/** A race with no cutoff anywhere shows no COT boxes: they would only ever say "–". */
+const hasCutoffs = (race: Race): boolean => race.checkpoints.some((c) => c.cutoff !== null);
+
+function Cell({ label, value, unit, big, style }: { label: string; value: string; unit: string; big?: boolean; style?: object }) {
   return (
     <View style={[styles.cell, style]}>
       <Text style={styles.cellLabel} numberOfLines={1}>
         {label}
       </Text>
-      <Text style={styles.cellValue}>
+      <Text style={[styles.cellValue, big && styles.cellValueBig]}>
         {value}
         {unit !== '' && <Text style={styles.cellUnit}> {unit}</Text>}
       </Text>
@@ -129,7 +150,7 @@ function LedgerRow({ race, reachedKm, startedAt, passedAt, now, checkpoint }: Pr
         </Text>
         <Text style={styles.rowSub}>{detail}</Text>
       </View>
-      <Amount checkpoint={checkpoint} closesAt={closesAt} arrived={arrived} now={now} />
+      {hasCutoffs(race) && <Amount checkpoint={checkpoint} closesAt={closesAt} arrived={arrived} now={now} />}
     </View>
   );
 }
@@ -181,6 +202,8 @@ const styles = StyleSheet.create({
   dist: { fontFamily: mono, fontSize: 13, color: colors.muted, marginTop: 4 },
   quad: { flexDirection: 'row', flexWrap: 'wrap', borderTopWidth: 1, borderTopColor: colors.line },
   cell: { width: '50%', paddingVertical: 13, paddingHorizontal: 16 },
+  cellWide: { width: '100%' },
+  cellValueBig: { fontSize: 40 },
   cellRight: { borderRightWidth: 1, borderRightColor: colors.line },
   cellBottom: { borderBottomWidth: 1, borderBottomColor: colors.line },
   cellLabel: { fontFamily: mono, fontSize: 10.5, letterSpacing: 1, textTransform: 'uppercase', color: colors.muted },

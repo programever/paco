@@ -67,7 +67,7 @@ export function LocateTab(props: Props) {
         />
         <View style={styles.mapFoot}>
           <View style={styles.ahead}>
-            <Text style={styles.label}>Arrows ahead (m)</Text>
+            <Text style={styles.label}>Arrows m</Text>
             <TextInput
               style={styles.input}
               value={props.aheadText}
@@ -76,8 +76,12 @@ export function LocateTab(props: Props) {
               returnKeyType="done"
             />
           </View>
-          <MiniButton label="My position" onPress={me} />
-          <MiniButton label="Full route" onPress={() => props.onView(fitAll(race.route))} />
+          <View style={styles.grow}>
+            <MiniButton label="My position" onPress={me} />
+          </View>
+          <View style={styles.grow}>
+            <MiniButton label="Full route" onPress={() => props.onView(fitAll(race.route))} />
+          </View>
         </View>
       </View>
       <Profile race={race} climbs={props.climbs} reachedKm={reached} cursorKm={props.cursorKm} onCursor={props.onCursor} onDragging={props.onDragging} />
@@ -177,7 +181,8 @@ const styles = StyleSheet.create({
   reject: { marginTop: 10, fontSize: 13.5, fontWeight: '600', color: colors.late },
   mapCard: { marginTop: 14, backgroundColor: colors.ink2, borderWidth: 1, borderColor: colors.line, borderRadius: 14, overflow: 'hidden' },
   mapFoot: { flexDirection: 'row', gap: 8, padding: 10, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: colors.line, alignItems: 'flex-end' },
-  ahead: { flex: 1, minWidth: 0 },
+  ahead: { width: 64 },
+  grow: { flex: 1 },
   label: { fontSize: 10.5, color: colors.muted, marginBottom: 3 },
   input: {
     backgroundColor: colors.ink,
@@ -190,7 +195,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 8,
   },
-  mini: { minHeight: 38, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 9, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.ink3, justifyContent: 'center' },
+  mini: { alignItems: 'center', minHeight: 38, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 9, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.ink3, justifyContent: 'center' },
   miniText: { fontFamily: mono, fontSize: 12, fontWeight: '700', color: colors.paper },
   pressed: { transform: [{ translateY: 1 }] },
 });
