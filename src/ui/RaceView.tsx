@@ -4,7 +4,7 @@ import { Alert, KeyboardAvoidingView, Pressable, SafeAreaView, ScrollView, Style
 import { LoadedRace } from '../app/races';
 import { Run } from '../core/run';
 import { fitAll, MapView } from './CourseMap';
-import { CrewTab } from './CrewTab';
+import { CrewCompose, CrewTab } from './CrewTab';
 import { LocateTab } from './LocateTab';
 import { PlanTab } from './PlanTab';
 import { colors, kmValue, longDuration, mono } from './theme';
@@ -30,6 +30,7 @@ export function RaceView({ loaded, run, now, onBack, onStart, onEnd, onDeclareKm
   const [cursorKm, setCursorKm] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
   const page = useRef<ScrollView>(null);
+  const [sent, setSent] = useState(0);
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -59,7 +60,7 @@ export function RaceView({ loaded, run, now, onBack, onStart, onEnd, onDeclareKm
           {tab === 'plan' ? (
             <PlanTab race={race} reachedKm={run?.km ?? 0} startedAt={run?.startedAt ?? race.startsAt} passedAt={run?.passedAt ?? {}} now={now} />
           ) : tab === 'crew' ? (
-            <CrewTab run={run} now={now} />
+            <CrewTab run={run} now={now} sent={sent} />
           ) : (
             <LocateTab
               race={race}
@@ -75,9 +76,15 @@ export function RaceView({ loaded, run, now, onBack, onStart, onEnd, onDeclareKm
             />
           )}
         </ScrollView>
-        {/* Always on screen: the runner never scrolls to find Start, Enter km or End. */}
+        {/* Always on screen: the runner never scrolls to find Start, Enter km, End, or the chat box. */}
         <View style={styles.dock}>
-          {run === null ? <BigButton label="Start" solid onPress={onStart} /> : <Dock onDeclareKm={onDeclareKm} onEnd={() => confirmEnd(onEnd)} />}
+          {run === null ? (
+            <BigButton label="Start" solid onPress={onStart} />
+          ) : tab === 'crew' ? (
+            <CrewCompose onSent={() => setSent((n) => n + 1)} />
+          ) : (
+            <Dock onDeclareKm={onDeclareKm} onEnd={() => confirmEnd(onEnd)} />
+          )}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

@@ -451,12 +451,15 @@ function scrub(e: PointerEvent): void {
   drawCursor(race);
 }
 
+/** The box is fixed to the screen, so the page itself scrolls to its end to show the newest message. */
+const scrollToNewest = () => window.scrollTo({ top: document.documentElement.scrollHeight });
+
 /** Oldest at the top, newest at the bottom by the box, as in any messenger. */
 function renderMessages(live: LiveDoc): void {
   $('unseen').hidden = state.unseen === 0;
   $('unseen').textContent = String(state.unseen);
   const box = $('history');
-  const atBottom = box.getBoundingClientRect().bottom <= window.innerHeight + 80;
+  const atBottom = box.getBoundingClientRect().bottom <= window.innerHeight + 160;
   const sending = state.outgoing.filter((o) => !state.chat.some((l) => l.id === o.id && l.at !== null));
   const lines: (Line & { failed?: string })[] = [
     ...state.chat.filter((l) => l.at !== null),
@@ -478,7 +481,7 @@ function renderMessages(live: LiveDoc): void {
         return `<li class="bubble crew"><div>${esc(l.text)}</div>${when} ${tick}</li>`;
       })
       .join('') || '<li class="empty">No messages</li>';
-  if (atBottom && onMessageTab()) $('free').scrollIntoView({ block: 'end' });
+  if (atBottom && onMessageTab()) scrollToNewest();
 }
 
 // ---------- wiring ----------
@@ -508,7 +511,7 @@ document.querySelectorAll<HTMLButtonElement>('.tab').forEach((tab) =>
     if (name === 'message') {
       state.unseen = 0;
       render();
-      $('free').scrollIntoView({ block: 'end' });
+      scrollToNewest();
     }
   }),
 );

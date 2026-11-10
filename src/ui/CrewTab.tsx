@@ -9,10 +9,13 @@ import { clockOf, colors, longDuration, mono } from './theme';
 /** While this tab is on screen the screen is lit anyway, so messages are fetched this often. */
 const inboxEveryMs = 30_000;
 
-/** One chat with the crew page, like a messenger: newest at the bottom, the box under it. */
-export function CrewTab({ run, now }: { run: Run | null; now: number }) {
+/**
+ * One chat with the crew page, like a messenger: newest at the bottom. The box
+ * to type in is `CrewCompose`, fixed at the bottom of the screen, outside the scroll.
+ * `sent` changes when the box sends, so the new message shows at once.
+ */
+export function CrewTab({ run, now, sent }: { run: Run | null; now: number; sent: number }) {
   const [crew, setCrew] = useState<Crew>(() => readCrew());
-  const [text, setText] = useState('');
   const reload = () => setCrew(readCrew());
 
   useEffect(() => {
@@ -23,14 +26,7 @@ export function CrewTab({ run, now }: { run: Run | null; now: number }) {
     return () => clearInterval(timer);
   }, [run?.startedAt]);
   // The GPS task writes the same file; the screen's refresh tick picks that up.
-  useEffect(reload, [now]);
-
-  const send = () => {
-    if (text.trim() === '') return;
-    void crewSay(text).then(reload);
-    setText('');
-    reload();
-  };
+  useEffect(reload, [now, sent]);
 
   return (
     <View>
@@ -60,22 +56,33 @@ export function CrewTab({ run, now }: { run: Run | null; now: number }) {
         )}
       </View>
 
-      {run !== null && (
-        <View style={styles.compose}>
-          <TextInput
-            style={styles.input}
-            value={text}
-            onChangeText={setText}
-            placeholder="Message"
-            placeholderTextColor={colors.muted}
-            maxLength={maxMessageLength}
-            multiline
-          />
-          <Pressable style={({ pressed }) => [styles.send, text.trim() === '' && styles.off, pressed && styles.pressed]} onPress={send}>
-            <Text style={styles.sendText}>Send</Text>
-          </Pressable>
-        </View>
-      )}
+    </View>
+  );
+}
+
+/** The box and Send, fixed at the bottom of the Crew tab in place of Enter km and End. */
+export function CrewCompose({ onSent }: { onSent: () => void }) {
+  const [text, setText] = useState('');
+  const send = () => {
+    if (text.trim() === '') return;
+    void crewSay(text).then(onSent);
+    setText('');
+    onSent();
+  };
+  return (
+    <View style={styles.compose}>
+      <TextInput
+        style={styles.input}
+        value={text}
+        onChangeText={setText}
+        placeholder="Message"
+        placeholderTextColor={colors.muted}
+        maxLength={maxMessageLength}
+        multiline
+      />
+      <Pressable style={({ pressed }) => [styles.send, text.trim() === '' && styles.off, pressed && styles.pressed]} onPress={send}>
+        <Text style={styles.sendText}>Send</Text>
+      </Pressable>
     </View>
   );
 }
@@ -139,7 +146,7 @@ const styles = StyleSheet.create({
   sent: { fontFamily: mono, fontSize: 11, color: colors.ok },
   sending: { fontFamily: mono, fontSize: 11, color: colors.warn },
   failed: { fontFamily: mono, fontSize: 11, fontWeight: '800', color: colors.late },
-  compose: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 14 },
+  compose: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   input: {
     flex: 1,
     minHeight: 48,
