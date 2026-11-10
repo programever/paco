@@ -48,6 +48,15 @@ const maxSpeedKmPerHour = 18;
 /** GPS noise allowance for going backwards along the course. */
 const backwardToleranceKm = 0.3;
 
+/**
+ * Room above the fastest possible run, for GPS noise. Small on purpose: on a
+ * park loop run seven times, the same spot is 1 km further each lap.
+ */
+const ceilingSlackKm = 0.5;
+
+/** An option this much closer to where the runner's pace puts them wins the tie. */
+const decisiveKm = 0.4;
+
 /** Candidates closer than this in deviation are equally good. */
 const tieWindowM = 50;
 
@@ -111,7 +120,8 @@ export function resolve(route: Route, known: Known, fix: Fix): Resolution | null
   const nearest = all[0];
   if (nearest === undefined) return null;
   const pool = isPositionKnown(known) ? narrow(known, fix, all) : all;
-  const best = pool[0] ?? nearest;
+  const best = pool[0];
+  if (best === undefined) return { kind: 'ambiguous', options: [], nearest };
   const tied = pool.filter((c) => c.deviationM - best.deviationM < tieWindowM).slice(0, 4);
   if (tied.length <= 1) return { kind: 'resolved', progress: best, nearest };
   return settleTie(known, fix.takenAt, tied, nearest);
@@ -122,21 +132,24 @@ const isPositionKnown = (known: Known): boolean => known.lastFix !== null || kno
 function narrow(known: Known, fix: Fix, all: readonly Candidate[]): readonly Candidate[] {
   const floorKm = known.km - backwardToleranceKm;
   const elapsedHours = Math.max(0, (fix.takenAt - known.updatedAt) / 3_600_000);
-  const ceilingKm = known.km + elapsedHours * maxSpeedKmPerHour + 2;
+  const ceilingKm = known.km + elapsedHours * maxSpeedKmPerHour + ceilingSlackKm;
   const crowFliesKm = known.lastFix === null ? 0 : haversineKm(known.lastFix.at, fix.at);
   const strictFloorKm = crowFliesKm > 0.25 ? Math.max(floorKm, known.km + crowFliesKm * 0.8) : floorKm;
   const within = (low: number, high: number) => all.filter((c) => c.km >= low && c.km <= high);
-  const attempts = [within(strictFloorKm, ceilingKm), within(floorKm, ceilingKm), within(floorKm, Infinity)];
-  return attempts.find((attempt) => attempt.length > 0) ?? all;
+  // Nothing a human can have reached: the fix is noise, or the runner left the
+  // course. Wait for the next one; the window widens as time passes. Jumping
+  // ahead instead lands a lap too far on a course that loops over itself.
+  const attempts = [within(strictFloorKm, ceilingKm), within(floorKm, ceilingKm)];
+  return attempts.find((attempt) => attempt.length > 0) ?? [];
 }
 
-/** A gap of more than 2 km in how well the options match the measured speed is decisive. */
+/** The option nearest to where the runner's own pace puts them wins, if clearly nearer than the next. */
 function settleTie(known: Known, now: number, options: readonly Candidate[], nearest: Candidate): Resolution {
   const reference = expectedKm(known, now);
   const away = (c: Candidate) => Math.abs(c.km - reference);
   const ranked = [...options].sort((a, b) => away(a) - away(b));
   const [chosen, second] = ranked;
-  if (second === undefined || away(second) - away(chosen) > 2) {
+  if (second === undefined || away(second) - away(chosen) > decisiveKm) {
     return { kind: 'resolved', progress: chosen, nearest };
   }
   return { kind: 'ambiguous', options: ranked, nearest };
