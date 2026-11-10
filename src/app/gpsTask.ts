@@ -3,7 +3,7 @@ import * as TaskManager from 'expo-task-manager';
 
 import { Fix } from '../core/position';
 import { applyFix, Run, startRun } from '../core/run';
-import { crewEndRun, crewStartRun, syncCrew } from './crew';
+import { crewEndRun, crewPositionNow, crewStartRun, syncCrew } from './crew';
 import { notify } from './notify';
 import { loadRace } from './races';
 import { clearRun, readRun, readSettings, writeRun } from './store';
@@ -25,7 +25,9 @@ export async function startRace(raceId: string): Promise<void> {
   void crewStartRun(run);
   await Location.startLocationUpdatesAsync(gpsTask, {
     accuracy: Location.Accuracy.BestForNavigation,
-    distanceInterval: 5,
+    // Readings also while standing still (a rest at a checkpoint): without them
+    // nothing runs, the crew page gets no position, and it rings after 30 minutes.
+    distanceInterval: 0,
     activityType: Location.ActivityType.Fitness,
     pausesUpdatesAutomatically: false,
     showsBackgroundLocationIndicator: true,
@@ -63,7 +65,15 @@ async function handle(locations: Location.LocationObject[]): Promise<void> {
   writeRun(result.run);
   for (const alert of result.alerts) await notify(alert);
   // Not awaited: a slow request on one bar of signal must not hold up the next fix.
-  void syncCrew();
+  void (newsFor(run, result.run) ? crewPositionNow() : syncCrew());
+}
+
+/** A checkpoint passed, or the runner left or came back to the route: the crew page should not wait for the next send. */
+function newsFor(before: Run, after: Run): boolean {
+  const passed = Object.keys(after.passedAt).length > Object.keys(before.passedAt).length;
+  const offBefore = before.routeState === 'off-route';
+  const offAfter = after.routeState === 'off-route';
+  return passed || offBefore !== offAfter;
 }
 
 /** Off the course every fix counts, so the way back is always fresh. */

@@ -2,7 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, AppState } from 'react-native';
 
-import { syncCrew } from './src/app/crew';
+import { crewPositionNow, syncCrew } from './src/app/crew';
 import { startRace, stopRace } from './src/app/gpsTask';
 import { showWhileOpen } from './src/app/notify';
 import { loadRace } from './src/app/races';
@@ -66,6 +66,7 @@ export default function App() {
     const context = { race: loaded.race, climbs: loaded.climbs, startedAt: current.startedAt, settings: readSettings() };
     writeRun(declareKm(context, current, km, Date.now()));
     refresh();
+    void crewPositionNow();
   };
 
   return (

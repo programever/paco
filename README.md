@@ -19,21 +19,26 @@ tests/       npm test
 ## Crew page
 
 https://programever.github.io/paco/#KEY shows a friend (the crew) where the runner is, on a map and on the
-route, the runner's status, the next checkpoints with a guessed arrival time and the COT margin. The crew can
-send short messages to the runner.
+route, the next checkpoints with a guessed arrival time and the COT margin, and one chat between the runner
+and the crew.
 
 How it works:
 
 - Paco makes a random key once and keeps it. The Crew tab shows the link with the key and a Share button.
-- **Position** (the newest only): Paco writes `paco/{key}` at most every 5 minutes. A new position replaces
-  the old one. Without signal, only the newest position is sent when the signal comes back.
-- **Taps** (OK, Tired, Resting, Injured, Need, Quit, SOS, Got it): each tap is saved in a queue file on the
-  phone and written as one record in `paco/{key}/taps/`. Nothing is lost without signal.
-- **Messages**: the page writes `paco/{key}/msgs/`. Paco fetches them on the same trips as the position (and
-  every 30 s while the Crew tab is on screen), then shows an alert and says "Message from crew". There is no
-  push: a free Apple account cannot receive push, so a message reaches the phone within about 5 minutes.
-- The page rings and shows a red banner for Injured, Need, Quit, SOS, and after 30 minutes without an update.
-  The "last update" time is the server's clock.
+- **Position** (the newest only, Iker: where the runner is matters most): Paco writes `paco/{key}` every
+  2 minutes while GPS readings come in, and at once when the runner types a km, passes a checkpoint, or
+  leaves or comes back to the route. A new position replaces the old one. Without signal, only the newest position is sent
+  when the signal comes back. A typed km is sent without the GPS fix: the page puts the runner on the route.
+- **Chat** (Iker, 2026-11-10: a plain messenger, no status buttons): each message is one record in
+  `paco/{key}/chat/` (`from` runner or crew). Messages go out strictly in order: a message is sent only once
+  every message before it is on the server. Paco keeps unsent messages in a file on the phone and tries again
+  on every trip; the page relies on Firestore, which queues writes in order and retries them. A message the
+  server refuses for good shows "not sent · Retry".
+- Paco fetches the chat on the same trips as the position (and every 30 s while the Crew tab is on screen),
+  then shows an alert and says "Message from crew". There is no push: a free Apple account cannot receive
+  push, so a message reaches the phone within about 2 minutes, or at once with the Pushover doorbell.
+- The page rings for every runner message, and after 30 minutes without an update. The "last update" time is
+  the server's clock.
 
 Paco uses Firestore over plain HTTPS (`src/crew/rest.ts`), not the Firebase package: one short request
 per trip costs less battery than an open connection. The page uses the Firebase package and listens.
@@ -112,6 +117,19 @@ service cloud.firestore {
       allow update: if false;
       allow delete: if key.size() >= 20;
     }
+    match /paco/{key}/chat/{id} {
+      allow read: if key.size() >= 20;
+      allow create: if key.size() >= 20
+        && request.resource.data.keys().hasOnly(['from', 'text', 't', 'at'])
+        && request.resource.data.from in ['runner', 'crew']
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 500
+        && request.resource.data.t is int
+        && request.resource.data.at == request.time;
+      allow update: if false;
+      allow delete: if key.size() >= 20;
+    }
     match /paco/{key}/msgs/{id} {
       allow read: if key.size() >= 20;
       allow create: if key.size() >= 20
@@ -129,7 +147,9 @@ service cloud.firestore {
 
 In plain words for `paco/`: whoever has the key (20 characters or more) can read; records must have the right
 shape; times named `at` and `sent` must be the server's own time; only the live record can be changed. Whoever
-has the key can delete: Paco deletes the last race's taps and messages when a new race starts.
+has the key can delete: Paco deletes the last race's chat when a new race starts. `chat/` is the one chat, both
+ways (2026-11-10); `taps/` and `msgs/` are the old status buttons and crew messages, kept so old records can
+still be deleted.
 
 ### Build
 

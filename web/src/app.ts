@@ -1,11 +1,11 @@
 // Paco crew page. Follows one runner: Paco writes, this page reads and answers.
-// paco/{key} is the live record, taps/ the runner's taps, msgs/ the crew's messages
+// paco/{key} is the live record, chat/ the messages both ways
 // (see ../../src/crew/protocol.ts). The key comes from the link: #<key>.
 
 import { initializeApp } from 'firebase/app';
 import {
-  addDoc, collection, doc, initializeFirestore, onSnapshot, orderBy, persistentLocalCache, query,
-  serverTimestamp, Timestamp, where, type Firestore, type Unsubscribe,
+  collection, doc, initializeFirestore, onSnapshot, orderBy, persistentLocalCache, query,
+  serverTimestamp, setDoc, Timestamp, where, type Firestore, type Unsubscribe,
 } from 'firebase/firestore';
 import L from 'leaflet';
 
@@ -13,18 +13,19 @@ import { climbs, Climb } from '../../src/core/climbs';
 import { bearing } from '../../src/core/geo';
 import { atKm, elevationRangeM, slice } from '../../src/core/route';
 import { checkpointLabel, clockText, Race, raceFromPlanFile } from '../../src/core/race';
-import { arrivals, delivered, isStale, seenIds, statusTone } from '../../src/crew/follow';
+import { delivered, isStale, stops } from '../../src/crew/follow';
 import {
-  firebaseConfig, keyLength, Live, readCrewLink, maxMessageLength, quickMessages, Tap, TapKind, tapKinds, tapLabel, urgentKinds, waitingAt,
+  ChatLine, firebaseConfig, keyLength, Live, maxMessageLength, randomId, readCrewLink,
 } from '../../src/crew/protocol';
 import { legendColour, readout, ticksOf } from '../../src/ui/legend';
-import { clockOf, colors, kmValue, longDuration, signedDuration } from '../../src/ui/theme';
+import { clockOf, colors, kmValue, longDuration } from '../../src/ui/theme';
 
 type LiveDoc = Live & { at: number | null };
-type Message = { id: string; text: string; at: number | null };
+/** A chat message as the page holds it: `at` is the server's time, null while on its way. */
+type Line = Omit<ChatLine, 'at'> & { at: number | null };
 
-/** History entries per page. */
-const historyPageSize = 10;
+/** A crew message typed here and not yet on the server. Firestore keeps the writes in order and retries them. */
+type Outgoing = Line & { failed: string };
 
 /** While stale, the page rings again this often. */
 const ringAgainMs = 5 * 60_000;
@@ -37,12 +38,12 @@ const state = {
   climbs: [] as readonly Climb[],
   /** The finger on the profile, mirrored on the map, as in Paco. */
   cursorKm: null as number | null,
-  taps: [] as Tap[],
-  messages: [] as Message[],
-  /** Taps already known when the page opened do not ring. */
-  knownTaps: null as Set<string> | null,
-  /** 0 is the newest page. */
-  historyPage: 0,
+  chat: [] as Line[],
+  outgoing: [] as Outgoing[],
+  /** Runner messages already known when the page opened do not ring. */
+  knownLines: null as Set<string> | null,
+  /** Runner messages that came while the Message tab was not open. */
+  unseen: 0,
   lastRing: 0,
   fitted: false,
 };
@@ -93,27 +94,23 @@ function follow(): void {
   );
 }
 
-/** Taps and messages of this run only: an older race's "Injured" means nothing now. */
+/** The chat of this run only: an older race's messages mean nothing now. */
 function followRun(start: number): void {
   for (const u of unsubRun) u();
-  state.taps = [];
-  state.messages = [];
-  state.knownTaps = null;
+  state.chat = [];
+  state.knownLines = null;
+  state.unseen = 0;
   unsubRun = [
-    onSnapshot(query(collection(db, 'paco', state.key, 'taps'), where('t', '>=', start), orderBy('t')), (snap) => {
-      state.taps = snap.docs.flatMap((d) => {
-        const x = d.data();
-        if (!(tapKinds as readonly string[]).includes(x.kind)) return [];
-        return [{ id: d.id, kind: x.kind as TapKind, items: Array.isArray(x.items) ? x.items.map(String) : [], msg: String(x.msg ?? ''), t: Number(x.t) }];
+    onSnapshot(query(collection(db, 'paco', state.key, 'chat'), where('at', '>=', Timestamp.fromMillis(start)), orderBy('at')), (snap) => {
+      state.chat = snap.docs.flatMap((d): Line[] => {
+        const x = d.data({ serverTimestamps: 'estimate' });
+        if (x.from !== 'runner' && x.from !== 'crew') return [];
+        const at = d.metadata.hasPendingWrites ? null : x.at instanceof Timestamp ? x.at.toMillis() : null;
+        return [{ id: d.id, from: x.from, text: String(x.text ?? ''), t: Number(x.t ?? 0), at }];
       });
-      ringForNewTaps();
-      render();
-    }),
-    onSnapshot(query(collection(db, 'paco', state.key, 'msgs'), where('at', '>=', Timestamp.fromMillis(start)), orderBy('at')), (snap) => {
-      state.messages = snap.docs.map((d) => {
-        const at = d.data({ serverTimestamps: 'estimate' }).at;
-        return { id: d.id, text: String(d.data().text ?? ''), at: at instanceof Timestamp ? at.toMillis() : null };
-      });
+      // On the server now: no longer "sending".
+      state.outgoing = state.outgoing.filter((o) => !state.chat.some((l) => l.id === o.id && l.at !== null));
+      ringForNewLines();
       render();
     }),
   ];
@@ -134,13 +131,30 @@ async function loadRace(id: string): Promise<void> {
   render();
 }
 
+/**
+ * Firestore sends writes in the order they were made and keeps retrying them,
+ * also after the page is closed and opened again. A write the server refuses
+ * for good is marked failed, with a Retry that sends it again at the end of the line.
+ */
 function send(text: string): void {
   const clean = text.trim().slice(0, maxMessageLength);
   if (clean === '' || state.key.length < keyLength) return;
-  addDoc(collection(db, 'paco', state.key, 'msgs'), { text: clean, at: serverTimestamp() }).catch((e: Error) =>
-    alert('Could not send: ' + e.message),
-  );
-  void pushToRunner();
+  const line: Outgoing = { id: randomId(20), from: 'crew', text: clean, t: Date.now(), at: null, failed: '' };
+  state.outgoing.push(line);
+  render();
+  setDoc(doc(db, 'paco', state.key, 'chat', line.id), { from: 'crew', text: clean, t: line.t, at: serverTimestamp() })
+    .then(() => pushToRunner())
+    .catch((e: Error) => {
+      line.failed = e.message;
+      render();
+    });
+}
+
+function retry(id: string): void {
+  const line = state.outgoing.find((o) => o.id === id);
+  if (line === undefined) return;
+  state.outgoing = state.outgoing.filter((o) => o.id !== id);
+  send(line.text);
 }
 
 /**
@@ -163,7 +177,7 @@ async function pushToRunner(): Promise<void> {
     const response = await fetch('https://api.pushover.net/1/messages.json', { method: 'POST', body });
     if (!response.ok) throw new Error(`Pushover said ${response.status}`);
   } catch (e) {
-    alert('Saved, but the doorbell failed: ' + (e as Error).message + '. The runner gets it within 5 minutes.');
+    alert('Saved, but the doorbell failed: ' + (e as Error).message + '. The runner gets it within about 2 minutes.');
   }
 }
 
@@ -191,18 +205,22 @@ function ring(urgent = true): void {
   }
 }
 
-/** Every new tap from the runner rings, "Got it" included: the crew may not be looking. */
-function ringForNewTaps(): void {
-  if (state.knownTaps === null) {
-    state.knownTaps = new Set(state.taps.map((t) => t.id));
+/** Every new message from the runner rings: the crew may not be looking. */
+function ringForNewLines(): void {
+  const runner = state.chat.filter((l) => l.from === 'runner');
+  if (state.knownLines === null) {
+    state.knownLines = new Set(runner.map((l) => l.id));
     return;
   }
-  const fresh = state.taps.filter((t) => !state.knownTaps!.has(t.id));
-  for (const t of fresh) state.knownTaps.add(t.id);
+  const fresh = runner.filter((l) => !state.knownLines!.has(l.id));
+  for (const l of fresh) state.knownLines.add(l.id);
   if (fresh.length === 0) return;
-  ring(fresh.some((t) => urgentKinds.includes(t.kind)));
+  ring();
+  if (!onMessageTab()) state.unseen += fresh.length;
   if (document.hidden) document.title = '🔴 News from the runner';
 }
+
+const onMessageTab = () => !document.querySelector<HTMLElement>('[data-pane="message"]')!.hidden;
 
 // ---------- rendering ----------
 
@@ -235,7 +253,7 @@ function render(): void {
   $('race-facts').textContent = `${kmValue(race.route.totalKm)} km · ↑${Math.round(race.route.totalAscentM)} m · started ${clockOf(live.start)}`;
 
   const at = live.fix ?? live.at ?? now;
-  // Race numbers only. The runner's taps (Injured, Need, ...) are read in the Message tab (Iker).
+  // Race numbers only. The runner's messages are read in the Message tab (Iker).
   const left = Math.max(0, race.route.totalKm - live.km);
   const age = live.at === null ? null : now - live.at;
   $('status').className = 'card status ok';
@@ -249,31 +267,27 @@ function render(): void {
       ${cell('GPS', live.acc === undefined ? 'no fix yet' : `±${Math.round(live.acc)} m`)}
     </div>`;
 
-  const list = arrivals(race, live.start, live.km, at);
+  const list = stops(race, live.km);
   const next = list.find((a) => !a.passed);
   $('next').innerHTML = next
     ? `<div class="label">NEXT</div><div class="value">${esc(next.name)} · ${kmValue(next.checkpoint.km - live.km)} km</div>
        <div class="grid">
-         ${cell('arrives about', next.eta === null ? '—' : clockOf(next.eta))}
          ${cell('COT', next.checkpoint.cutoff ? clockText(next.checkpoint.cutoff) : 'none')}
-         ${cell('margin', next.marginMs === null ? '—' : signedDuration(next.marginMs))}
        </div>
        <a class="mini link" href="${rideTo(race, next.checkpoint.km)}" target="_blank" rel="noopener">Ride there ↗</a>`
     : `<div class="value">Finished</div>`;
 
   renderMap(race, live);
   renderProfile(race, live.km);
-  renderMessages(race, live);
+  renderMessages(live);
 
   $('table').innerHTML =
-    `<tr><th>Checkpoint</th><th>km</th><th>Arrive</th><th>COT</th><th>Margin</th><th></th></tr>` +
+    `<tr><th>Checkpoint</th><th>km</th><th>COT</th><th></th></tr>` +
     list
       .map(
         (a) => `<tr class="${a.passed ? 'passed' : ''}">
           <td>${esc(a.name)}</td><td>${kmValue(a.checkpoint.km)}</td>
-          <td>${a.passed ? 'passed' : a.eta === null ? '—' : clockOf(a.eta)}</td>
           <td>${a.checkpoint.cutoff ? clockText(a.checkpoint.cutoff) : '—'}</td>
-          <td class="${a.marginMs === null ? '' : a.marginMs < 0 ? 'minus' : a.marginMs < 30 * 60_000 ? 'close' : 'plus'}">${a.marginMs === null ? '—' : signedDuration(a.marginMs)}</td>
           <td><a class="ride" href="${rideTo(race, a.checkpoint.km)}" target="_blank" rel="noopener">Ride ↗</a></td>
         </tr>`,
       )
@@ -437,53 +451,52 @@ function scrub(e: PointerEvent): void {
   drawCursor(race);
 }
 
-function renderMessages(race: Race, live: LiveDoc): void {
-  const select = $<HTMLSelectElement>('cp');
-  const names = race.checkpoints.filter((c) => c.role !== 'start').map((c) => c.name || 'Finish');
-  if (select.options.length !== names.length) {
-    const next = race.checkpoints.find((c) => c.km > live.km && c.role !== 'start');
-    select.innerHTML = names.map((n) => `<option ${n === (next?.name || 'Finish') ? 'selected' : ''}>${esc(n)}</option>`).join('');
-  }
-  const seen = seenIds(state.taps);
-  const waiting = state.messages.filter((m) => !seen.has(m.id)).length;
-  $('unseen').hidden = waiting === 0;
-  $('unseen').textContent = String(waiting);
-  // One chat: the runner's taps on the left, the crew's messages on the right, newest on top.
-  // "Got it" is not a bubble of its own: it is the tick on the message it answers.
-  const bubbles = [
-    ...state.taps
-      .filter((t) => t.kind !== 'seen')
-      .map((t) => ({
-        at: t.t,
-        html: `<li class="bubble runner ${statusTone[t.kind]}"><div>${esc([tapLabel[t.kind], ...t.items].join(' · '))}</div><span class="when">${clockOf(t.t)}</span></li>`,
-      })),
-    ...state.messages.map((m) => {
-      const tick = seen.has(m.id) ? '<span class="tick seen">✓✓ seen</span>' : m.at !== null && delivered(m.at, live.got) ? '<span class="tick">✓✓ on phone</span>' : m.at === null ? '<span class="tick">sending</span>' : '<span class="tick">✓ sent</span>';
-      return { at: m.at ?? Date.now(), html: `<li class="bubble crew"><div>${esc(m.text)}</div><span class="when">${m.at ? clockOf(m.at) : ''}</span> ${tick}</li>` };
-    }),
-  ].sort((a, b) => b.at - a.at);
-  const pages = Math.max(1, Math.ceil(bubbles.length / historyPageSize));
-  state.historyPage = Math.min(state.historyPage, pages - 1);
-  const shown = bubbles.slice(state.historyPage * historyPageSize, (state.historyPage + 1) * historyPageSize);
-  $('history').innerHTML = shown.map((b) => b.html).join('') || '<li class="empty">Nothing yet</li>';
-  $('history-pages').hidden = pages === 1;
-  $('history-page').textContent = `${state.historyPage + 1} / ${pages}`;
-  $<HTMLButtonElement>('newer').disabled = state.historyPage === 0;
-  $<HTMLButtonElement>('older').disabled = state.historyPage >= pages - 1;
+/** Oldest at the top, newest at the bottom by the box, as in any messenger. */
+function renderMessages(live: LiveDoc): void {
+  $('unseen').hidden = state.unseen === 0;
+  $('unseen').textContent = String(state.unseen);
+  const box = $('history');
+  const atBottom = box.getBoundingClientRect().bottom <= window.innerHeight + 80;
+  const sending = state.outgoing.filter((o) => !state.chat.some((l) => l.id === o.id && l.at !== null));
+  const lines: (Line & { failed?: string })[] = [
+    ...state.chat.filter((l) => l.at !== null),
+    ...state.chat.filter((l) => l.at === null && !sending.some((o) => o.id === l.id)),
+    ...sending,
+  ];
+  box.innerHTML =
+    lines
+      .map((l) => {
+        const when = `<span class="when">${clockOf(l.at ?? l.t)}</span>`;
+        if (l.from === 'runner') return `<li class="bubble runner"><div>${esc(l.text)}</div>${when}</li>`;
+        const tick = l.failed
+          ? `<button class="tick failed" data-retry="${l.id}">not sent · Retry</button>`
+          : l.at === null
+            ? `<span class="tick">${navigator.onLine ? 'sending…' : 'no signal · will send'}</span>`
+            : delivered(l.at, live.got)
+              ? '<span class="tick">✓✓ on phone</span>'
+              : '<span class="tick">✓ sent</span>';
+        return `<li class="bubble crew"><div>${esc(l.text)}</div>${when} ${tick}</li>`;
+      })
+      .join('') || '<li class="empty">No messages</li>';
+  if (atBottom && onMessageTab()) $('free').scrollIntoView({ block: 'end' });
 }
 
 // ---------- wiring ----------
 
-$('quick').innerHTML = quickMessages.map((m) => `<button class="mini" data-text="${esc(m)}">${esc(m)}</button>`).join('');
-$('quick').addEventListener('click', (e) => {
-  const text = (e.target as HTMLElement).dataset.text;
-  if (text) send(text);
-});
-$('waiting').addEventListener('click', () => send(waitingAt($<HTMLSelectElement>('cp').value)));
 $('free').addEventListener('submit', (e) => {
   e.preventDefault();
-  send($<HTMLInputElement>('text').value);
-  $<HTMLInputElement>('text').value = '';
+  send($<HTMLTextAreaElement>('text').value);
+  $<HTMLTextAreaElement>('text').value = '';
+});
+// Enter sends, Shift+Enter makes a new line, as in a messenger.
+$('text').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
+  e.preventDefault();
+  $<HTMLFormElement>('free').requestSubmit();
+});
+$('history').addEventListener('click', (e) => {
+  const id = (e.target as HTMLElement).dataset.retry;
+  if (id) retry(id);
 });
 document.querySelectorAll<HTMLButtonElement>('.tab').forEach((tab) =>
   tab.addEventListener('click', () => {
@@ -492,16 +505,13 @@ document.querySelectorAll<HTMLButtonElement>('.tab').forEach((tab) =>
     document.querySelectorAll<HTMLElement>('.pane').forEach((p) => (p.hidden = p.dataset.pane !== name));
     // Leaflet measures its box when shown; a map drawn while hidden has the wrong size.
     if (name === 'status') map?.invalidateSize();
+    if (name === 'message') {
+      state.unseen = 0;
+      render();
+      $('free').scrollIntoView({ block: 'end' });
+    }
   }),
 );
-$('newer').addEventListener('click', () => {
-  state.historyPage = Math.max(0, state.historyPage - 1);
-  render();
-});
-$('older').addEventListener('click', () => {
-  state.historyPage += 1;
-  render();
-});
 $('to-runner').addEventListener('click', () => toRunner());
 $('to-route').addEventListener('click', () => toRoute());
 $('profile').addEventListener('pointerdown', (e) => {
@@ -528,6 +538,8 @@ document.addEventListener('visibilitychange', () => {
   void audio?.resume();
 });
 window.addEventListener('hashchange', () => location.reload());
+window.addEventListener('online', render);
+window.addEventListener('offline', render);
 
 setInterval(render, 15_000);
 follow();

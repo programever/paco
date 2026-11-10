@@ -3,8 +3,8 @@
  * the app and the page, so both read the same names. Pure: no phone, no browser.
  *
  * paco/{key}              the live record: the race, the newest position, the km
- * paco/{key}/taps/{id}    the runner's taps (OK, Injured, Need, ...), one record each
- * paco/{key}/msgs/{id}    the crew's messages to the runner
+ * paco/{key}/chat/{id}    one chat, both ways: each record is one message, runner or crew
+ * paco/{key}/taps, msgs   the old status buttons and crew messages; only ever deleted now
  *
  * The key is a long random code made once by Paco. Whoever has the link has the key.
  */
@@ -47,39 +47,15 @@ export function readCrewLink(hash: string): { key: string; pushover: Pushover | 
 /** The rules only accept keys at least this long. */
 export const keyLength = 24;
 
-export const injuries = ['knee', 'ankle', 'foot', 'cramp', 'stomach', 'other'] as const;
-export type Injury = (typeof injuries)[number];
-
-export const needs = ['water', 'food', 'gel', 'salt', 'medicine', 'socks', 'warm clothes', 'headlamp', 'power bank'] as const;
-export type Need = (typeof needs)[number];
-
-/** `seen` is the runner's "Got it" on a crew message; the others are statuses. */
-export const tapKinds = ['ok', 'tired', 'resting', 'injured', 'need', 'quit', 'sos', 'seen'] as const;
-export type TapKind = (typeof tapKinds)[number];
-
-export const tapLabel: Record<TapKind, string> = {
-  ok: 'OK',
-  tired: 'Tired',
-  resting: 'Resting',
-  injured: 'Injured',
-  need: 'Need',
-  quit: 'Quit',
-  sos: 'SOS',
-  seen: 'Got it',
-};
-
-/** Taps the crew must not miss: the page rings for these. */
-export const urgentKinds: readonly TapKind[] = ['injured', 'need', 'quit', 'sos'];
-
-export type Tap = {
+/** One chat message. Written once, never changed: the id makes a resend harmless. */
+export type ChatLine = {
   readonly id: string;
-  readonly kind: TapKind;
-  /** Injured: the body parts. Need: the things. Empty otherwise. */
-  readonly items: readonly string[];
-  /** Seen: the id of the crew message. Empty otherwise. */
-  readonly msg: string;
-  /** Phone time of the tap, ms. */
+  readonly from: 'runner' | 'crew';
+  readonly text: string;
+  /** The sender's clock when it was typed, ms: the order of messages not yet on the server. */
   readonly t: number;
+  /** The server's clock when it arrived (ISO). Empty until the server has it. */
+  readonly at: string;
 };
 
 export type Live = {
@@ -94,14 +70,11 @@ export type Live = {
   readonly acc?: number;
   /** Phone time of that fix, ms. */
   readonly fix?: number;
-  /** Server time of the newest crew message the phone has downloaded, or empty. */
+  /** Server time of the newest chat message the phone has downloaded, or empty. */
   readonly got: string;
 };
 
-export const quickMessages = ['Medicine is ready', 'Hurry, COT is close', 'Slow down, you are fine', 'Go go go!', 'Call me'] as const;
-export const waitingAt = (checkpoint: string): string => `I am at ${checkpoint}, waiting`;
-
-export const maxMessageLength = 200;
+export const maxMessageLength = 500;
 
 /** Letters and digits only, so the key is safe in a URL and a Firestore path. */
 export function randomId(length: number, random: () => number = Math.random): string {

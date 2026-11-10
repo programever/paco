@@ -26,7 +26,6 @@
         <nav class="tabs">
           <button class="tab on" data-tab="status">Status</button>
           <button class="tab" data-tab="message">Message <span id="unseen" class="badge" hidden></span></button>
-          <button class="tab" data-tab="checkpoints">Checkpoints</button>
         </nav>
 
         <div class="pane" data-pane="status">
@@ -46,31 +45,16 @@
             <div id="profile-captions" class="profile-captions"></div>
             <p id="readout" class="readout" hidden></p>
           </div>
+          <h2>Checkpoints</h2>
+          <div class="card"><table id="table"></table></div>
         </div>
 
         <div class="pane" data-pane="message" hidden>
-          <div class="card">
-            <div id="quick" class="quick"></div>
-            <div class="row">
-              <select id="cp"></select>
-              <button id="waiting" class="mini">Waiting there</button>
-            </div>
-            <form id="free" class="row">
-              <input id="text" maxlength="200" autocomplete="off" placeholder="Message" />
-              <button class="mini solid">Send</button>
-            </form>
-          </div>
-          <h2>History</h2>
           <ul id="history" class="chat card"></ul>
-          <div id="history-pages" class="pages" hidden>
-            <button id="newer" class="mini">‹ Newer</button>
-            <span id="history-page"></span>
-            <button id="older" class="mini">Older ›</button>
-          </div>
-        </div>
-
-        <div class="pane" data-pane="checkpoints" hidden>
-          <div class="card"><table id="table"></table></div>
+          <form id="free" class="compose">
+            <textarea id="text" maxlength="500" rows="1" autocomplete="off" placeholder="Message"></textarea>
+            <button class="mini solid">Send</button>
+          </form>
         </div>
       </section>
     </main>

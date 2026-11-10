@@ -3,7 +3,7 @@
  * which costs battery and dies anyway while iOS holds Paco asleep; one short
  * request when there is something to say is cheaper.
  */
-import { firebaseConfig, Live, Tap } from './protocol';
+import { ChatLine, firebaseConfig, Live } from './protocol';
 
 const base = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents`;
 const docName = (path: string) => `projects/${firebaseConfig.projectId}/databases/(default)/documents/${path}`;
@@ -71,11 +71,10 @@ export function liveFields(live: Live): Record<string, Value> {
   return fields;
 }
 
-export const tapFields = (tap: Tap): Record<string, Value> => ({
-  kind: str(tap.kind),
-  items: { arrayValue: { values: tap.items.map(str) } },
-  msg: str(tap.msg),
-  t: int(tap.t),
+export const chatFields = (line: ChatLine): Record<string, Value> => ({
+  from: str(line.from),
+  text: str(line.text),
+  t: int(line.t),
 });
 
 /** `at` is the server's clock, so a wrong phone clock cannot fool the page's "last update". */
@@ -90,50 +89,55 @@ export const writeLive = (key: string, live: Live): Promise<unknown> =>
   });
 
 /**
- * A tap is written once: if the answer was lost and the tap is sent again,
+ * A chat message is written once: if the answer was lost and it is sent again,
  * the second write fails because the record exists, and that counts as sent.
+ * Returns the server's time of arrival, or empty when that answer was lost.
  */
-export async function writeTap(key: string, tap: Tap): Promise<void> {
+export async function writeChat(key: string, line: ChatLine): Promise<string> {
   try {
-    await post(`${base}:commit`, {
+    const answer = (await post(`${base}:commit`, {
       writes: [
         {
-          update: { name: docName(`paco/${key}/taps/${tap.id}`), fields: tapFields(tap) },
-          updateTransforms: [{ fieldPath: 'sent', setToServerValue: 'REQUEST_TIME' }],
+          update: { name: docName(`paco/${key}/chat/${line.id}`), fields: chatFields(line) },
+          updateTransforms: [{ fieldPath: 'at', setToServerValue: 'REQUEST_TIME' }],
           currentDocument: { exists: false },
         },
       ],
-    });
+    })) as { commitTime?: string } | null;
+    return answer?.commitTime ?? '';
   } catch (error) {
-    if (error instanceof RestError && (error.code === 'FAILED_PRECONDITION' || error.code === 'ALREADY_EXISTS')) return;
+    if (error instanceof RestError && (error.code === 'FAILED_PRECONDITION' || error.code === 'ALREADY_EXISTS')) return '';
     throw error;
   }
 }
 
-export type CrewMessage = { readonly id: string; readonly text: string; readonly at: string };
+const text = (value: Value | undefined): string => (value !== undefined && 'stringValue' in value ? value.stringValue : '');
 
-/** Crew messages written after `since` (a server timestamp), oldest first. */
-export async function messagesAfter(key: string, since: string): Promise<CrewMessage[]> {
+/** Chat messages, both ways, that reached the server after `since` (a server time), oldest first. */
+export async function chatAfter(key: string, since: string): Promise<ChatLine[]> {
   const rows = (await post(`${base}/paco/${key}:runQuery`, {
     structuredQuery: {
-      from: [{ collectionId: 'msgs' }],
+      from: [{ collectionId: 'chat' }],
       where: { fieldFilter: { field: { fieldPath: 'at' }, op: 'GREATER_THAN', value: { timestampValue: since } } },
       orderBy: [{ field: { fieldPath: 'at' }, direction: 'ASCENDING' }],
-      limit: 30,
+      limit: 50,
     },
   })) as { document?: { name: string; fields?: Record<string, Value> } }[];
-  return rows.flatMap((row) => {
+  return rows.flatMap((row): ChatLine[] => {
     const fields = row.document?.fields;
     if (row.document === undefined || fields === undefined) return [];
-    const text = 'stringValue' in (fields.text ?? {}) ? (fields.text as { stringValue: string }).stringValue : '';
     const at = 'timestampValue' in (fields.at ?? {}) ? (fields.at as { timestampValue: string }).timestampValue : '';
-    if (at === '') return [];
-    return [{ id: row.document.name.split('/').pop() ?? '', text, at }];
+    const from = text(fields.from);
+    if (at === '' || (from !== 'runner' && from !== 'crew')) return [];
+    const t = 'integerValue' in (fields.t ?? {}) ? Number((fields.t as { integerValue: string }).integerValue) : Date.parse(at);
+    return [{ id: row.document.name.split('/').pop() ?? '', from, text: text(fields.text), t, at }];
   });
 }
 
+type Collection = 'taps' | 'msgs' | 'chat';
+
 /** Names of the records in `collection` older than `before`, at most `limit`. */
-async function olderThan(key: string, collection: 'taps' | 'msgs', before: number, limit: number): Promise<string[]> {
+async function olderThan(key: string, collection: Collection, before: number, limit: number): Promise<string[]> {
   const field = collection === 'taps' ? 't' : 'at';
   const value = collection === 'taps' ? { integerValue: String(Math.round(before)) } : { timestampValue: new Date(before).toISOString() };
   const rows = (await post(`${base}/paco/${key}:runQuery`, {
@@ -148,12 +152,13 @@ async function olderThan(key: string, collection: 'taps' | 'msgs', before: numbe
 }
 
 /**
- * Deletes every tap and crew message from before `before` (a new run's start).
+ * Deletes every chat message from before `before` (a new run's start), and
+ * what is left of the old status taps and crew messages.
  * Only older records: if this runs late, the new run's records stay.
  */
 export async function deleteBefore(key: string, before: number): Promise<number> {
   let deleted = 0;
-  for (const collection of ['taps', 'msgs'] as const) {
+  for (const collection of ['chat', 'taps', 'msgs'] as const) {
     for (;;) {
       const names = await olderThan(key, collection, before, 300);
       if (names.length === 0) break;
